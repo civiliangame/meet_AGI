@@ -18,3 +18,5 @@ build/
 frontend/.next/
 frontend/out/
 frontend/package-lock.json
+*.egg-info/
+.pytest_cache/
