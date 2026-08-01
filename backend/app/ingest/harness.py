@@ -59,6 +59,24 @@ from ..store import DECK_DOC_ID, NOTES_DOC_ID, store
 
 log = logging.getLogger(__name__)
 
+
+def _pipeline_available() -> bool:
+    """Whether real reasoning is configured.
+
+    Checked per run rather than at import, so adding a key and restarting the replay is
+    enough to switch from canned output to the real pipeline.
+    """
+    from ..providers.llm import get_llm_provider
+
+    return get_llm_provider() is not None
+
+
+def handle_final_segment(segment) -> None:
+    """Imported lazily: `app.pipeline` imports the store, which imports this module."""
+    from ..pipeline import handle_final_segment as _handle
+
+    _handle(segment)
+
 FIXTURES_DIR = Path(__file__).resolve().parents[3] / "fixtures" / "meetings"
 
 _PARTIAL_INTERVAL_MS = 700
@@ -233,6 +251,15 @@ class HarnessRun:
         self.events = events
         self.speed = speed
         self.loop = loop
+        self.live = _pipeline_available()
+        """Whether finalized utterances go to the real reasoning pipeline.
+
+        When they do, the fixture's `triggers_interjection` and `answer_ref` hints are
+        ignored: Kindred has to *find* the planted contradiction in the documents rather
+        than being handed it, which is the only version of this demo worth showing. With
+        no `ANTHROPIC_API_KEY` the canned timeline runs instead, so the frontend and the
+        stage demo still work with an empty `.env`.
+        """
 
     # --- emit helpers ------------------------------------------------------------
 
@@ -375,9 +402,18 @@ class HarnessRun:
             self.meeting.stats.utterance_count += 1
             self.meeting.stats.duration_seconds = end_ms // 1000
             self._publish("transcript.final", segment)
+            if self.live:
+                # The same call Recall's transcript stream will make. Returns
+                # immediately; reasoning happens off the replay timeline.
+                handle_final_segment(segment)
 
         add(end_ms, emit_final)
         add(end_ms + 120, lambda: self._speaking(participant_id, False))
+
+        if self.live:
+            # The pipeline drives wake detection and conflict finding from the transcript
+            # itself, so the fixture's scripted reasoning beats would double up.
+            return
 
         if ref := event.get("triggers_interjection"):
             self._add_ambient_reasoning(add, end_ms, participant_id, text, ref, seg_id)
@@ -540,6 +576,12 @@ class HarnessRun:
         store.segments_for(self.meeting.id).clear()
         store.interjections_for(self.meeting.id).clear()
 
+        # Clear the cooldown and the transcript window too, or the second pass through a
+        # looping fixture is silenced by the first pass's rate limiter.
+        from ..pipeline import engine
+
+        engine.forget(self.meeting.id)
+
 
 def start(fixture_id: str, speed: float = 1.0, loop: bool = False) -> Meeting:
     """Create a harness-backed meeting and begin replaying. Raises on unknown fixture."""
@@ -583,6 +625,14 @@ def stop(meeting_id: str) -> Meeting | None:
         return None
     if task := store.harness_tasks.pop(meeting_id, None):
         task.cancel()
+
+    # Drop this meeting's conversation window, cooldown state, and chat sink. Without
+    # this a looping replay would carry the previous run's rate-limit state into the
+    # next one and go quiet.
+    from ..pipeline import engine
+
+    engine.forget(meeting_id)
+
     meeting.state = MeetingState.ENDED
     meeting.ended_at = utcnow()
     meeting.agent_state = AgentState.IDLE

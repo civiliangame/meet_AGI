@@ -162,6 +162,7 @@ class RecallClient:
         join_announcement_mp3: bytes,
         replay_on_participant_join: bool = False,
         start_recording_on: str = "call_join",
+        everyone_left_timeout: int = 300,
         metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Dispatch a bot that is allowed to speak.
@@ -188,9 +189,16 @@ class RecallClient:
                 "disable_after": 60,
             }
 
+        # Recall's default is to leave 2 seconds after the bot is alone in the call. That
+        # is right for a passive notetaker and wrong here: during a demo the human is
+        # often the one still joining, and a bot that vanishes mid-sentence takes the
+        # whole point with it.
+        automatic_leave = {"everyone_left_timeout": {"timeout": everyone_left_timeout}}
+
         payload: dict[str, Any] = {
             "meeting_url": meeting_url,
             "bot_name": bot_name,
+            "automatic_leave": automatic_leave,
             "recording_config": {"start_recording_on": start_recording_on},
             "automatic_audio_output": automatic_audio_output,
         }

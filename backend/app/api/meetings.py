@@ -244,8 +244,12 @@ def mute(meeting_id: str, payload: MuteRequest) -> Meeting:
     summary="Ask Kindred a question directly",
     description=(
         "Type a question from the dashboard. With `speak: true` Kindred also says the "
-        "answer into the meeting. **Milestone 4** replaces the canned answer below with "
-        "real retrieval and reasoning; the response shape is final."
+        "answer into the meeting.\n\n"
+        "This runs the same retrieval and reasoning that the spoken wake word does, so "
+        "it is a genuine substitute rather than a demo prop: if wake detection misfires "
+        "on stage, type the question and Kindred still answers correctly, out loud.\n\n"
+        "With no `ANTHROPIC_API_KEY` configured it returns a placeholder answer so the "
+        "card, citations, and speaking flow can still be built against it."
     ),
 )
 async def ask(
@@ -261,38 +265,29 @@ async def ask(
         QuestionCapturedData(question=payload.question, segment_ids=[]),
     )
     _set_agent_state(meeting, AgentState.THINKING, "answering a typed question")
-    await asyncio.sleep(_THINKING_SECONDS)
 
-    interjection = store.build_interjection(
-        meeting_id,
-        kind=InterjectionKind.ANSWER,
-        status=InterjectionStatus.POSTED,
-        chat_alert=(
-            "\U0001f5e3️ Kindred answered a question from the dashboard. "
-            "Full response in the Kindred dashboard."
-        ),
-        headline=f"Answer: {payload.question[:120]}",
-        body_md=(
-            f"**Question.** {payload.question}\n\n"
-            "**Answer.** Real retrieval and reasoning land in Milestone 4. This is a "
-            "placeholder response with a real citation attached so the card, the "
-            "citation list, and the speaking flow can all be built and styled now.\n\n"
-            "The response shape will not change when the reasoning becomes real."
-        ),
-        confidence=0.5,
-        trigger=InterjectionTrigger(segment_ids=[], person_id=None, quote=payload.question),
-        citations=[
-            Citation(
-                document_id=DECK_DOC_ID,
-                filename="Q3-board-deck.pdf",
-                chunk_id=f"{PREFIX_CHUNK}_01J8XK5B6C7D8E9F0G1H2J",
-                page=14,
-                quote="New Product Line: $1.42M (-12.1% MoM)",
-                relevance=0.74,
-            )
-        ],
-        spoken=payload.speak,
+    transcript = engine.memory.for_meeting(meeting_id).render()
+    answer = await answer_question(
+        question=payload.question, asker="the dashboard", transcript=transcript
     )
+
+    if answer is None:
+        interjection = _placeholder_answer(meeting_id, payload)
+    else:
+        interjection = store.build_interjection(
+            meeting_id,
+            kind=InterjectionKind.ANSWER,
+            status=InterjectionStatus.POSTED,
+            chat_alert=answer.chat_alert,
+            headline=answer.headline,
+            body_md=answer.body_md,
+            confidence=answer.confidence,
+            trigger=InterjectionTrigger(
+                segment_ids=[], person_id=None, quote=payload.question
+            ),
+            citations=answer.citations,
+            spoken=payload.speak,
+        )
     store.interjections_for(meeting_id).append(interjection)
     meeting.stats.interjection_count += 1
 
@@ -301,14 +296,21 @@ async def ask(
         meeting_id, "speech.answered", AnsweredData(interjection_id=interjection.id)
     )
 
+    if store.settings.autonomy != Autonomy.SILENT:
+        await chat_router.post(meeting_id, interjection.chat_alert)
+
     if not payload.speak:
         _set_agent_state(meeting, AgentState.IDLE)
         return interjection
 
+    # `spoken` is written for the ear — no markdown, no citations, one or two sentences.
+    # The headline is written to be read, so it makes a poor thing to say out loud.
+    to_say = answer.spoken if answer is not None else interjection.headline
+
     if runtime.speech.is_attached(meeting_id):
         # Live meeting: queue real audio. `SpeechOutput` owns the speaking → idle
         # transition and holds it for the clip's actual length.
-        await runtime.speech.say(meeting_id, interjection.headline)
+        await runtime.speech.say(meeting_id, to_say)
     else:
         # Harness meeting — no bot to play into. Hold in `speaking` for roughly as long
         # as the answer would take to say, otherwise the state is emitted and overwritten
@@ -316,6 +318,36 @@ async def ask(
         _set_agent_state(meeting, AgentState.SPEAKING)
         asyncio.create_task(_return_to_idle(meeting_id, _SPEAKING_SECONDS))
     return interjection
+
+
+def _placeholder_answer(meeting_id: str, payload: AskRequest) -> Interjection:
+    """Stand-in used when no reasoning provider is configured.
+
+    Carries a real citation so the card, the citation list, and the speaking flow can be
+    built and styled against it — but says plainly that it is not a real answer, because
+    a placeholder that looks like a real answer is how a demo goes wrong on stage.
+    """
+    return store.build_interjection(
+        meeting_id,
+        kind=InterjectionKind.ANSWER,
+        status=InterjectionStatus.POSTED,
+        chat_alert=(
+            "\U0001f5e3️ Kindred has no reasoning provider configured "
+            "(ANTHROPIC_API_KEY is unset), so this is a placeholder answer."
+        ),
+        headline=f"Answer: {payload.question[:120]}",
+        body_md=(
+            f"**Question.** {payload.question}\n\n"
+            "**Answer unavailable.** No `ANTHROPIC_API_KEY` is configured, so retrieval "
+            "and reasoning were skipped. Set the key in `.env` and restart to get a real "
+            "answer with real citations.\n\n"
+            "The response shape does not change when reasoning becomes available."
+        ),
+        confidence=0.0,
+        trigger=InterjectionTrigger(segment_ids=[], person_id=None, quote=payload.question),
+        citations=[store.demo_citation()],
+        spoken=payload.speak,
+    )
 
 
 async def _return_to_idle(meeting_id: str, after_seconds: float) -> None:
