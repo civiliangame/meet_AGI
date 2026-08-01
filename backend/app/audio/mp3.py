@@ -90,9 +90,12 @@ def mp3_duration_ms(data: bytes) -> int:
     Walks the frame headers and sums each frame's own duration, so VBR files and files
     whose sample rate changes mid-stream come out right.
 
-    A LAME/Xing header occupies one otherwise-empty frame and is counted like any other,
-    which overstates the total by ~26 ms. That is far below the padding Kindred already
-    leaves between utterances, so it is not worth special-casing.
+    Runs ~50-75 ms long against ffprobe: the LAME/Xing header occupies one otherwise
+    empty frame that is counted like any other, and encoder delay and end padding are
+    described in that header rather than being absent from the stream. Both errors point
+    the same way — the estimate is never short — so Kindred waits a fraction too long
+    before its next clip rather than talking over its own tail. That is the direction to
+    be wrong in, and it is well inside the padding between utterances anyway.
     """
     index = _skip_id3(data)
     total_ms = 0.0

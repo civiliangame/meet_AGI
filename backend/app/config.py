@@ -17,6 +17,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
 ASSET_AUDIO_DIR = Path(__file__).resolve().parent / "assets" / "audio"
+KNOWLEDGE_DIR = REPO_ROOT / "knowledge"
+"""Plain-text corpus Kindred reasons over. One `.txt` per document."""
 
 
 class AppConfig(BaseSettings):
@@ -26,6 +28,27 @@ class AppConfig(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    anthropic_api_key: str | None = Field(
+        default=None,
+        description=(
+            "Reasoning for both loops. Without it the pipeline falls back to canned "
+            "fixture output so the harness demo still runs offline."
+        ),
+    )
+    anthropic_model: str = "claude-opus-5"
+    anthropic_fast_model: str = Field(
+        default="claude-haiku-4-5",
+        description="Used for triage — the highest-QPS call in the system. See DESIGN.md §6.",
+    )
+
+    inworld_api_key: str | None = None
+    inworld_voice_id: str = Field(
+        default="Dennis",
+        description="Inworld voice catalogue id. `GET https://api.inworld.ai/tts/v1/voices` lists them.",
+    )
+    inworld_model_id: str = "inworld-tts-2"
+    inworld_base_url: str = "https://api.inworld.ai"
 
     recall_api_key: str | None = None
     recall_region: str = Field(
@@ -41,8 +64,11 @@ class AppConfig(BaseSettings):
     """Display name in the participant list. Google Meet shows this to everyone."""
 
     voice_provider: str = Field(
-        default="sample",
-        description="`sample` plays pre-baked clips. Real TTS providers register alongside it.",
+        default="auto",
+        description=(
+            "`auto` uses Inworld when INWORLD_API_KEY is set and falls back to the sample "
+            "clips otherwise. Force one with `inworld` or `sample`."
+        ),
     )
 
     speech_tail_padding_ms: int = Field(

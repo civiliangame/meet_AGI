@@ -46,8 +46,10 @@ _THINKING_SECONDS = 1.1
 """Simulated reasoning delay for `/ask`, so the frontend's thinking state is visible."""
 
 _SPEAKING_SECONDS = 5.0
-"""How long Kindred holds `speaking` after a spoken answer. Replaced by real TTS
-duration in Milestone 7."""
+"""How long a *simulated* spoken answer holds `speaking`.
+
+Only used for harness meetings, which have no audio channel. A live Recall meeting goes
+through `SpeechOutput`, which holds for the clip's real duration."""
 
 
 def _require(meeting_id: str) -> Meeting:
@@ -246,7 +248,9 @@ def mute(meeting_id: str, payload: MuteRequest) -> Meeting:
         "real retrieval and reasoning; the response shape is final."
     ),
 )
-async def ask(meeting_id: str, payload: AskRequest) -> Interjection:
+async def ask(
+    meeting_id: str, payload: AskRequest, runtime: Runtime = Depends(get_runtime)
+) -> Interjection:
     meeting = _require(meeting_id)
     if meeting.agent_state == AgentState.MUTED and payload.speak:
         raise bad_request("Kindred is muted and cannot speak.", {"meeting_id": meeting_id})
@@ -297,14 +301,20 @@ async def ask(meeting_id: str, payload: AskRequest) -> Interjection:
         meeting_id, "speech.answered", AnsweredData(interjection_id=interjection.id)
     )
 
-    if payload.speak:
-        # Hold in `speaking` for roughly as long as the answer would take to say,
-        # otherwise the state is emitted and overwritten in the same tick and the
-        # frontend never renders it.
+    if not payload.speak:
+        _set_agent_state(meeting, AgentState.IDLE)
+        return interjection
+
+    if runtime.speech.is_attached(meeting_id):
+        # Live meeting: queue real audio. `SpeechOutput` owns the speaking → idle
+        # transition and holds it for the clip's actual length.
+        await runtime.speech.say(meeting_id, interjection.headline)
+    else:
+        # Harness meeting — no bot to play into. Hold in `speaking` for roughly as long
+        # as the answer would take to say, otherwise the state is emitted and overwritten
+        # in the same tick and the frontend never renders it.
         _set_agent_state(meeting, AgentState.SPEAKING)
         asyncio.create_task(_return_to_idle(meeting_id, _SPEAKING_SECONDS))
-    else:
-        _set_agent_state(meeting, AgentState.IDLE)
     return interjection
 
 
