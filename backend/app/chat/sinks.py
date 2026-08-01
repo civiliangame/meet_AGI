@@ -59,7 +59,7 @@ class RecallChatSink:
 
     name = "recall"
 
-    def __init__(self, client: "RecallClient", bot_id: str) -> None:
+    def __init__(self, client: RecallClient, bot_id: str) -> None:
         self._client = client
         self._bot_id = bot_id
 

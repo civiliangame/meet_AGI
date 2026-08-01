@@ -50,6 +50,15 @@ export type InterjectionTrigger = S["InterjectionTrigger"];
 export type Fixture = S["Fixture"];
 export type Health = S["Health"];
 
+// --- Post-meeting review ---------------------------------------------------------
+
+/** Everything a review page needs, from one `GET /api/meetings/{id}/bundle`. */
+export type MeetingBundle = S["MeetingBundle"];
+
+/** A document Kindred actually cited during a session, with the passages it used. */
+export type CitedDocument = S["CitedDocument"];
+export type SourceQuote = S["SourceQuote"];
+
 // --- Live events -----------------------------------------------------------------
 
 /**

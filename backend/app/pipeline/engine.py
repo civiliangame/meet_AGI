@@ -233,7 +233,9 @@ class PipelineEngine:
         if store.settings.autonomy != Autonomy.SILENT:
             await chat_router.post(meeting_id, answer.chat_alert)
 
-        bus.publish_meeting(meeting_id, "speech.answered", AnsweredData(interjection_id=interjection.id))
+        bus.publish_meeting(
+            meeting_id, "speech.answered", AnsweredData(interjection_id=interjection.id)
+        )
 
     # --- ambient loop ---------------------------------------------------------------
 

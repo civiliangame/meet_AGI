@@ -10,6 +10,7 @@
  */
 
 import type {
+  CitedDocument,
   Document,
   Fixture,
   Health,
@@ -17,6 +18,7 @@ import type {
   IntegrationProvider,
   Interjection,
   Meeting,
+  MeetingBundle,
   MeetingCreate,
   Page,
   Person,
@@ -184,6 +186,25 @@ export const api = {
       request<Page<TranscriptSegment>>(`/api/meetings/${id}/transcript`, { query }),
     interjections: (id: string, query?: { cursor?: string; limit?: number }) =>
       request<Page<Interjection>>(`/api/meetings/${id}/interjections`, { query }),
+
+    /** Delete a session and its archive. Irreversible. */
+    remove: (id: string) =>
+      request<{ ok: boolean }>(`/api/meetings/${id}`, { method: "DELETE" }),
+
+    // --- Post-meeting review ---
+    /** Meeting + transcript + interjections + sources in one call. Use for review pages. */
+    bundle: (id: string) => request<MeetingBundle>(`/api/meetings/${id}/bundle`),
+    /** Documents Kindred actually cited, most-used first. The audit surface. */
+    sources: (id: string) =>
+      request<Page<CitedDocument>>(`/api/meetings/${id}/sources`),
+    /** Substring search over the finalized transcript, optionally scoped to a speaker. */
+    search: (
+      id: string,
+      query: { q?: string; person_id?: string; cursor?: string; limit?: number },
+    ) => request<Page<TranscriptSegment>>(`/api/meetings/${id}/search`, { query }),
+    /** One interjection, for deep-linking a claim from a shared URL. */
+    interjection: (id: string, interjectionId: string) =>
+      request<Interjection>(`/api/meetings/${id}/interjections/${interjectionId}`),
 
     // --- Operator controls. Stage insurance; wire these to visible buttons. ---
     /** Force `listening` without the wake word. */

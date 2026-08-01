@@ -61,10 +61,12 @@ from .interjection import (
 )
 from .meeting import (
     AgentState,
+    CitedDocument,
     Fixture,
     HarnessStart,
     HarnessStop,
     Meeting,
+    MeetingBundle,
     MeetingCreate,
     MeetingPlatform,
     MeetingSource,
@@ -72,6 +74,7 @@ from .meeting import (
     MeetingStats,
     MuteRequest,
     RosterEntry,
+    SourceQuote,
 )
 from .person import Person, PersonCreate, PersonUpdate
 from .settings import (
@@ -90,7 +93,6 @@ from .settings import (
 from .transcript import TranscriptSegment
 
 __all__ = [
-    "CHAT_ALERT_MAX_CHARS",
     "Ack",
     "AgentState",
     "AgentStateChangedData",
@@ -99,7 +101,9 @@ __all__ = [
     "AnsweredEvent",
     "AskRequest",
     "Autonomy",
+    "CHAT_ALERT_MAX_CHARS",
     "Citation",
+    "CitedDocument",
     "ClarificationAskedData",
     "ClarificationAskedEvent",
     "ClientMessage",
@@ -130,6 +134,7 @@ __all__ = [
     "InterjectionUpdatedEvent",
     "LiveEvent",
     "Meeting",
+    "MeetingBundle",
     "MeetingCreate",
     "MeetingPlatform",
     "MeetingSource",
@@ -146,11 +151,11 @@ __all__ = [
     "ParticipantSpeakingChangedData",
     "ParticipantSpeakingChangedEvent",
     "Person",
-    "PersonCreate",
-    "PersonUpdate",
     "PersonaProviderName",
     "PersonaSettings",
     "PersonaTone",
+    "PersonCreate",
+    "PersonUpdate",
     "QuestionCapturedData",
     "QuestionCapturedEvent",
     "RosterEntry",
@@ -159,15 +164,16 @@ __all__ = [
     "SettingsUpdate",
     "SnapshotData",
     "SnapshotEvent",
+    "SourceQuote",
     "TranscriptFinalEvent",
     "TranscriptPartialEvent",
     "TranscriptSegment",
     "TriageProviderName",
     "TriageSettings",
     "Ts",
+    "utcnow",
     "VoiceProviderName",
     "VoiceSettings",
     "WakeDetectedData",
     "WakeDetectedEvent",
-    "utcnow",
 ]

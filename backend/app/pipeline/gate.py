@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 

@@ -15,6 +15,8 @@ from enum import Enum
 from pydantic import Field
 
 from .common import Schema, Ts
+from .interjection import Interjection
+from .transcript import TranscriptSegment
 
 
 class MeetingPlatform(str, Enum):
@@ -69,9 +71,16 @@ class RosterEntry(Schema):
 
 
 class MeetingStats(Schema):
+    """Counts for the session list. Cheap to render a row from, no extra fetches."""
+
     utterance_count: int = 0
     interjection_count: int = 0
     duration_seconds: int = 0
+    participant_count: int = Field(default=0, description="Distinct participants seen.")
+    wake_count: int = Field(default=0, description="Times Kindred was addressed by name.")
+    source_document_count: int = Field(
+        default=0, description="Distinct documents cited during this session."
+    )
 
 
 class Meeting(Schema):
@@ -112,6 +121,53 @@ class MeetingCreate(Schema):
 
 class MuteRequest(Schema):
     muted: bool
+
+
+# --- Post-meeting review ---------------------------------------------------------
+# The dashboard is a place to check sources and transcript *after* a meeting, so these
+# types answer "what did Kindred claim, and what did it read to get there?"
+
+
+class SourceQuote(Schema):
+    """One passage Kindred cited, and which interjection used it."""
+
+    interjection_id: str
+    chunk_id: str
+    page: int | None = Field(default=None, description="1-indexed. Null for non-paginated sources.")
+    quote: str = Field(description="The retrieved span, verbatim. Render as-is — it is the evidence.")
+    relevance: float = Field(ge=0.0, le=1.0)
+
+
+class CitedDocument(Schema):
+    """A document Kindred actually cited during a session.
+
+    Aggregated from the citations on that session's interjections, so this is what was
+    genuinely used, not merely what was available to search. That distinction is the
+    point of the review screen: it lets a human audit whether Kindred read the right
+    thing before it spoke.
+    """
+
+    document_id: str
+    filename: str
+    citation_count: int = Field(description="Total citations across all interjections.")
+    interjection_ids: list[str] = Field(default_factory=list)
+    quotes: list[SourceQuote] = Field(default_factory=list)
+
+
+class MeetingBundle(Schema):
+    """Everything a review page needs, in one request.
+
+    The alternative is four round-trips (meeting, transcript, interjections, sources)
+    that all have to land before anything can render. For a page whose whole job is
+    reading a finished meeting, one call is simpler on both sides.
+
+    Live views should use the WebSocket instead — this is a snapshot, not a stream.
+    """
+
+    meeting: Meeting
+    transcript: list[TranscriptSegment]
+    interjections: list[Interjection]
+    sources: list[CitedDocument]
 
 
 # --- Dev harness -----------------------------------------------------------------

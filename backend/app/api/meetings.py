@@ -13,16 +13,17 @@ import asyncio
 from fastapi import APIRouter, Depends, Query
 
 from ..bus import bus
+from ..chat import chat_router
 from ..errors import bad_request, not_found
-from ..ids import PREFIX_CHUNK
 from ..integrations.recall import RecallError
+from ..pipeline import answer_question, engine
 from ..runtime import Runtime, get_runtime
 from ..schemas import (
     AgentState,
     AgentStateChangedData,
     AnsweredData,
     AskRequest,
-    Citation,
+    Autonomy,
     Interjection,
     InterjectionKind,
     InterjectionStatus,
@@ -38,7 +39,7 @@ from ..schemas import (
     TranscriptSegment,
     utcnow,
 )
-from ..store import DECK_DOC_ID, paginate, store
+from ..store import paginate, store
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 

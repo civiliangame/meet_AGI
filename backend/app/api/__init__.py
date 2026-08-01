@@ -14,6 +14,7 @@ from . import (
     live,
     meetings,
     people,
+    review,
     schema_only,
     settings,
     speech,
@@ -25,6 +26,9 @@ api_router.include_router(documents.router)
 api_router.include_router(integrations.router)
 api_router.include_router(settings.router)
 api_router.include_router(meetings.router)
+# Shares the /meetings prefix with meetings.router. Registered after it so the live-
+# meeting routes win any path overlap; review adds only new paths today.
+api_router.include_router(review.router)
 api_router.include_router(speech.router)
 api_router.include_router(interjections.router)
 api_router.include_router(dev.router)

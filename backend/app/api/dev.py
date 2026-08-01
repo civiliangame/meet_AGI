@@ -23,6 +23,8 @@ from fastapi import APIRouter, Depends
 
 from ..errors import bad_request, not_found
 from ..ingest import harness
+from ..knowledge import reload_knowledge_base
+from ..pipeline import engine
 from ..runtime import Runtime, get_runtime
 from ..schemas import Ack, Fixture, HarnessStart, HarnessStop, Meeting, Page
 from ..store import store
@@ -86,9 +88,14 @@ async def stop_harness(
     summary="Reset all state",
     description=(
         "Cancels running replays, clears meetings, transcripts, and interjections, and "
-        "re-seeds the demo people, documents, and integrations. Handy between demo runs."
+        "re-seeds the demo people, documents, and integrations. Also clears the "
+        "pipeline's conversation memory and interjection cooldowns, and re-reads the "
+        "`knowledge/` corpus from disk — so editing a document between demo runs takes "
+        "effect without a restart. Handy between demo runs."
     ),
 )
 def reset() -> Ack:
     store.reset()
+    engine.reset()
+    reload_knowledge_base()
     return Ack()

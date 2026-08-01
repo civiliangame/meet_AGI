@@ -136,16 +136,28 @@ class WakeDetector:
 
     @staticmethod
     def _is_addressed(haystack: str, start: int, phrase: str) -> bool:
-        """Whether this occurrence is addressing the agent rather than mentioning it."""
-        if start == 0:
-            return True
+        """Whether this occurrence addresses the agent rather than mentioning it.
 
-        # Punctuation is stripped by normalize(), so a clause boundary cannot be seen
-        # directly. Fall back to the strongest available signal: question-shaped
-        # continuation. "we should call it hey agi" has none; "hold on hey agi what does
-        # the deck say" does.
+        Punctuation is gone by this point, so the comma in "Kindred, what does..." is not
+        available as a signal. Two things stand in for it:
+
+        - **How distinctive the phrase is.** "hey agi" is not something anyone says by
+          accident, so at the start of an utterance it is a wake on its own. A one-word
+          alias like "Kindred" is also an ordinary English word, and "kindred spirits,
+          the two of them" must not wake the agent mid-demo.
+        - **Question-shaped continuation.** Whatever the phrase, if what follows looks
+          like a question or a command, it is being addressed to someone.
+        """
         remainder = haystack[start + len(phrase) :].split()
-        return bool(remainder) and remainder[0] in _QUESTION_WORDS
+        looks_addressed = bool(remainder) and remainder[0] in _QUESTION_WORDS
+
+        if start == 0:
+            is_distinctive = " " in phrase
+            return is_distinctive or not remainder or looks_addressed
+
+        # Mid-utterance the bar is higher: the phrase has to be followed by a question,
+        # which rules out "we should call it hey agi" and "talking to Kindred about this".
+        return looks_addressed
 
 
 def build_detector() -> WakeDetector:

@@ -6,10 +6,11 @@ The agent is called **Kindred**. It joins your meeting as a participant, hears e
 speaker on a separate audio track, knows who each person is, and stays quiet.
 
 - **Ambient mode (default).** Kindred listens for factual claims and checks them against
-  your documents. When it finds a real conflict, it flags it in the meeting chat and puts
-  the full reasoning — with citations — in the dashboard.
-- **Speech mode.** Say *"Kindred"* and it wakes up, listens to your question, asks a
-  clarifying question if it needs one, and answers out loud in the meeting.
+  your documents *and* against what people said earlier in the same meeting. When it finds
+  a real conflict, it flags it in the meeting chat and puts the full reasoning — with
+  citations — in the dashboard.
+- **Speech mode.** Say *"Hey AGI"* and it wakes up, searches the documents, answers out
+  loud in the meeting, and types the answer into the chat.
 
 Built at the AGI House hackathon on [Inworld](https://inworld.ai) (voice),
 [Character.AI](https://character.ai) (persona), and [Tenstorrent](https://tenstorrent.com)
@@ -19,23 +20,54 @@ Built at the AGI House hackathon on [Inworld](https://inworld.ai) (voice),
 
 ## Status
 
-The API contract is live and the backend runs. Audio output into a real meeting works.
-Reasoning is still canned. See **[DESIGN.md](./DESIGN.md)** for the full architecture.
+The API contract is live, the backend runs, and the STT → LLM → TTS loop is wired end to
+end. See **[DESIGN.md](./DESIGN.md)** for the full architecture.
 
 | Milestone | State |
 |---|---|
 | 0 — Schemas, OpenAPI, generated TS, fixture harness | ✅ done |
 | 1 — Config CRUD (people, documents, integrations, settings) | ✅ done, in-memory |
 | 2 — Harness emits the full live event stream | ✅ done |
-| 3 — Document ingestion → pgvector retrieval | ⬜ simulated on a timer |
-| 4 — Ambient loop: triage → reason → interjection | ⬜ canned content |
-| 5 — Recall bot join + per-speaker transcript | 🟡 bot join + audio out done; transcript ingestion open |
-| 7 — Speech mode with real TTS | 🟡 path works on sample clips |
+| 3 — Document retrieval | ✅ done over `knowledge/*.txt` (no pgvector — see below) |
+| 4 — Ambient loop: triage → reason → interjection | ✅ done, real Claude reasoning |
+| 5 — Recall bot join + per-speaker transcript | 🟡 bot join, audio out, and chat posting done; live transcript ingestion open |
+| 6 — Chat alert posting | ✅ done, server-capped at 500 chars |
+| 7 — Speech mode with real TTS | ✅ done on Inworld |
+| 8 — Sentence-level streaming | ⬜ open (single clip per answer today) |
+
+**Transcript ingestion is the one gap in the live path.** Everything downstream of a
+finalized utterance is real; the harness supplies those utterances today, and Recall's
+transcript stream will call the same function (`app.pipeline.handle_final_segment`).
+
+## The loop
+
+Every finalized utterance goes through one entry point:
+
+```
+handle_final_segment(segment)
+   │
+   ├── "Hey AGI" heard ──▶ speech mode
+   │                        retrieve → answer → Inworld TTS → speak → type into chat
+   │
+   └── otherwise ────────▶ ambient mode
+                            triage → retrieve → find conflicts → rate-limit → type into chat
+```
+
+The ambient loop looks for two kinds of conflict: a claim that contradicts the documents,
+and a claim that contradicts what someone else already said in this meeting.
+
+**Retrieval is plain text, deliberately.** `knowledge/*.txt` is chunked on `##` headings
+and scored by keyword overlap, then Claude reads the top handful. The corpus is small
+enough that a frontier model beats cosine similarity over it, and it keeps Postgres,
+pgvector, and an embedding provider off the critical path. `app/knowledge/base.py`
+`retrieve()` is the seam if that stops being true. Files map back onto the seeded
+`Document` records by filename stem, so citations carry a real `document_id`.
 
 ## Quick links
 
+- [**FRONTEND.md**](./FRONTEND.md) ← screen-by-screen spec, start here if you're building the UI
+- [**frontend/README.md**](./frontend/README.md) ← frontend setup and the API layer
 - [**API contract**](./DESIGN.md#8-api-contract) ← the frontend/backend boundary
-- [**frontend/README.md**](./frontend/README.md) ← start here if you're building the UI
 - [Architecture](./DESIGN.md#3-architecture) · [Build order](./DESIGN.md#11-build-order)
 - [Verified platform capabilities](./DESIGN.md#2-confirmed-platform-capabilities)
 
@@ -62,6 +94,29 @@ curl -X POST localhost:8000/api/dev/harness/start \
 
 Copy the returned `id` and connect to `ws://localhost:8000/api/meetings/{id}/live`.
 
+`GET /api/health` tells you what is actually wired up — whether Kindred will reason for
+real or replay fixtures, speak with Inworld or play sample clips, and how many document
+chunks it loaded. Check it before blaming the demo.
+
+### Turning the real loop on
+
+With `ANTHROPIC_API_KEY` set, the harness stops replaying its scripted conclusions and
+feeds the transcript to the live pipeline instead — Kindred has to *find* the planted
+contradiction in `knowledge/`, not be handed it. With the key unset everything still
+runs on canned output, so the frontend is buildable with an empty `.env`.
+
+```bash
+cp .env.example .env      # then fill in ANTHROPIC_API_KEY and INWORLD_API_KEY
+```
+
+`autonomy` controls how far an interjection travels: `silent` (dashboard only),
+`propose` (waits for approval), `auto_post` (types into the meeting — the default).
+
+```bash
+curl -X PATCH localhost:8000/api/settings -H 'content-type: application/json' \
+  -d '{"autonomy":"silent"}'
+```
+
 Tests:
 
 ```bash
@@ -83,8 +138,10 @@ removals get a heads-up first** — two people are building against this in para
 
 ## Making Kindred speak
 
-Audio output runs end to end today, on sample clips rather than real TTS. Send a bot into
-a meeting and have it talk:
+Real TTS runs on **Inworld** (`POST /tts/v1/voice`, mp3 out) whenever `INWORLD_API_KEY`
+is set; without it, the same path plays pre-baked sample clips and flags the utterance
+`placeholder: true` so the UI can be honest about it. Send a bot into a meeting and have
+it talk:
 
 ```bash
 python scripts/demo_speak.py https://meet.google.com/abc-defg-hij --clips 3

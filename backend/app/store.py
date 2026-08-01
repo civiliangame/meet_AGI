@@ -313,6 +313,30 @@ class Store:
 store = Store()
 
 
+def refresh_meeting_stats(meeting: Meeting) -> Meeting:
+    """Recompute a meeting's derived counts from what is actually stored.
+
+    Derived rather than maintained incrementally, because the mutation sites are spread
+    across the ingestion, reasoning, and speech paths — and a counter incremented in
+    five places is a counter that drifts. Called before archiving and before serving a
+    review page, both of which are far too infrequent for the cost to matter.
+    """
+    finals = [s for s in store.segments_for(meeting.id) if s.is_final]
+    interjections = store.interjections_for(meeting.id)
+    documents = {c.document_id for i in interjections for c in i.citations}
+
+    meeting.stats.utterance_count = len(finals)
+    meeting.stats.interjection_count = len(interjections)
+    meeting.stats.participant_count = len(meeting.roster)
+    meeting.stats.source_document_count = len(documents)
+    meeting.stats.wake_count = sum(
+        1 for i in interjections if i.kind in ("answer", "clarification")
+    )
+    if finals:
+        meeting.stats.duration_seconds = max(s.end_ms for s in finals) // 1000
+    return meeting
+
+
 def paginate(items: list[T], cursor: str | None, limit: int) -> tuple[list[T], str | None]:
     """Offset pagination behind an opaque cursor.
 

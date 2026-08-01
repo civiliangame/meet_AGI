@@ -276,6 +276,45 @@
         "title": "Citation",
         "type": "object"
       },
+      "CitedDocument": {
+        "description": "A document Kindred actually cited during a session.\n\nAggregated from the citations on that session's interjections, so this is what was\ngenuinely used, not merely what was available to search. That distinction is the\npoint of the review screen: it lets a human audit whether Kindred read the right\nthing before it spoke.",
+        "properties": {
+          "citation_count": {
+            "description": "Total citations across all interjections.",
+            "title": "Citation Count",
+            "type": "integer"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "interjection_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Interjection Ids",
+            "type": "array"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/SourceQuote"
+            },
+            "title": "Quotes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "document_id",
+          "filename",
+          "citation_count"
+        ],
+        "title": "CitedDocument",
+        "type": "object"
+      },
       "ClarificationAskedData": {
         "properties": {
           "question": {
@@ -1306,6 +1345,43 @@
         "title": "Meeting",
         "type": "object"
       },
+      "MeetingBundle": {
+        "description": "Everything a review page needs, in one request.\n\nThe alternative is four round-trips (meeting, transcript, interjections, sources)\nthat all have to land before anything can render. For a page whose whole job is\nreading a finished meeting, one call is simpler on both sides.\n\nLive views should use the WebSocket instead \u2014 this is a snapshot, not a stream.",
+        "properties": {
+          "interjections": {
+            "items": {
+              "$ref": "#/components/schemas/Interjection"
+            },
+            "title": "Interjections",
+            "type": "array"
+          },
+          "meeting": {
+            "$ref": "#/components/schemas/Meeting"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/CitedDocument"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "transcript": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "title": "Transcript",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meeting",
+          "transcript",
+          "interjections",
+          "sources"
+        ],
+        "title": "MeetingBundle",
+        "type": "object"
+      },
       "MeetingCreate": {
         "properties": {
           "expected_person_ids": {
@@ -1441,6 +1517,7 @@
         "type": "object"
       },
       "MeetingStats": {
+        "description": "Counts for the session list. Cheap to render a row from, no extra fetches.",
         "properties": {
           "duration_seconds": {
             "default": 0,
@@ -1452,9 +1529,27 @@
             "title": "Interjection Count",
             "type": "integer"
           },
+          "participant_count": {
+            "default": 0,
+            "description": "Distinct participants seen.",
+            "title": "Participant Count",
+            "type": "integer"
+          },
+          "source_document_count": {
+            "default": 0,
+            "description": "Distinct documents cited during this session.",
+            "title": "Source Document Count",
+            "type": "integer"
+          },
           "utterance_count": {
             "default": 0,
             "title": "Utterance Count",
+            "type": "integer"
+          },
+          "wake_count": {
+            "default": 0,
+            "description": "Times Kindred was addressed by name.",
+            "title": "Wake Count",
             "type": "integer"
           }
         },
@@ -1472,6 +1567,33 @@
           "muted"
         ],
         "title": "MuteRequest",
+        "type": "object"
+      },
+      "Page_CitedDocument_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CitedDocument"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[CitedDocument]",
         "type": "object"
       },
       "Page_Document_": {
@@ -2523,6 +2645,50 @@
         "title": "SnapshotEvent",
         "type": "object"
       },
+      "SourceQuote": {
+        "description": "One passage Kindred cited, and which interjection used it.",
+        "properties": {
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "interjection_id": {
+            "title": "Interjection Id",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-indexed. Null for non-paginated sources.",
+            "title": "Page"
+          },
+          "quote": {
+            "description": "The retrieved span, verbatim. Render as-is \u2014 it is the evidence.",
+            "title": "Quote",
+            "type": "string"
+          },
+          "relevance": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance",
+            "type": "number"
+          }
+        },
+        "required": [
+          "interjection_id",
+          "chunk_id",
+          "quote",
+          "relevance"
+        ],
+        "title": "SourceQuote",
+        "type": "object"
+      },
       "SpeakRandomRequest": {
         "description": "Play random sample clips \u2014 the smoke test for the whole audio-output path.",
         "properties": {
@@ -3431,7 +3597,7 @@
     },
     "/api/dev/reset": {
       "post": {
-        "description": "Cancels running replays, clears meetings, transcripts, and interjections, and re-seeds the demo people, documents, and integrations. Handy between demo runs.",
+        "description": "Cancels running replays, clears meetings, transcripts, and interjections, and re-seeds the demo people, documents, and integrations. Also clears the pipeline's conversation memory and interjection cooldowns, and re-reads the `knowledge/` corpus from disk \u2014 so editing a document between demo runs takes effect without a restart. Handy between demo runs.",
         "operationId": "reset_api_dev_reset_post",
         "responses": {
           "200": {
@@ -4565,6 +4731,77 @@
       }
     },
     "/api/meetings/{meeting_id}": {
+      "delete": {
+        "description": "Removes the session and its archived bundle from disk. Irreversible. A live session is stopped first.",
+        "operationId": "delete_meeting_api_meetings__meeting_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ack"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Delete a session",
+        "tags": [
+          "review"
+        ]
+      },
       "get": {
         "operationId": "get_meeting_api_meetings__meeting_id__get",
         "parameters": [
@@ -4638,7 +4875,7 @@
     },
     "/api/meetings/{meeting_id}/ask": {
       "post": {
-        "description": "Type a question from the dashboard. With `speak: true` Kindred also says the answer into the meeting. **Milestone 4** replaces the canned answer below with real retrieval and reasoning; the response shape is final.",
+        "description": "Type a question from the dashboard. With `speak: true` Kindred also says the answer into the meeting.\n\nThis runs the same retrieval and reasoning that the spoken wake word does, so it is a genuine substitute rather than a demo prop: if wake detection misfires on stage, type the question and Kindred still answers correctly, out loud.\n\nWith no `ANTHROPIC_API_KEY` configured it returns a placeholder answer so the card, citations, and speaking flow can still be built against it.",
         "operationId": "ask_api_meetings__meeting_id__ask_post",
         "parameters": [
           {
@@ -4716,6 +4953,79 @@
         "summary": "Ask Kindred a question directly",
         "tags": [
           "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/bundle": {
+      "get": {
+        "description": "Meeting, full finalized transcript, interjections, and aggregated sources. One call so a review page renders without waterfalling four requests.\n\nSnapshot only. Live views should use `WS /api/meetings/{id}/live` instead.",
+        "operationId": "get_bundle_api_meetings__meeting_id__bundle_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingBundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Everything a review page needs, in one request",
+        "tags": [
+          "review"
         ]
       }
     },
@@ -4816,6 +5126,88 @@
         "summary": "List interjections for a meeting",
         "tags": [
           "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/interjections/{interjection_id}": {
+      "get": {
+        "description": "For deep-linking a single claim from a shared review URL.",
+        "operationId": "get_interjection_api_meetings__meeting_id__interjections__interjection_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "interjection_id",
+            "required": true,
+            "schema": {
+              "title": "Interjection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Get one interjection",
+        "tags": [
+          "review"
         ]
       }
     },
@@ -5048,6 +5440,210 @@
         "summary": "Mute or unmute Kindred",
         "tags": [
           "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/search": {
+      "get": {
+        "description": "Case-insensitive substring match over finalized transcript, optionally scoped to one speaker. Returns segments in chronological order.",
+        "operationId": "search_transcript_api_meetings__meeting_id__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Substring to match. Empty returns everything.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "Substring to match. Empty returns everything.",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Restrict to one speaker.",
+            "in": "query",
+            "name": "person_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to one speaker.",
+              "title": "Person Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TranscriptSegment_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Search a session transcript",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/sources": {
+      "get": {
+        "description": "What Kindred actually read before it spoke, aggregated from the citations on this session's interjections \u2014 not merely what was available to search. Ordered by citation count. This is the audit surface: it answers whether Kindred looked at the right thing.",
+        "operationId": "get_sources_api_meetings__meeting_id__sources_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CitedDocument_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Documents cited during a session",
+        "tags": [
+          "review"
         ]
       }
     },

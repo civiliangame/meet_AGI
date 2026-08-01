@@ -122,7 +122,7 @@ export interface paths {
         put?: never;
         /**
          * Reset all state
-         * @description Cancels running replays, clears meetings, transcripts, and interjections, and re-seeds the demo people, documents, and integrations. Handy between demo runs.
+         * @description Cancels running replays, clears meetings, transcripts, and interjections, and re-seeds the demo people, documents, and integrations. Also clears the pipeline's conversation memory and interjection cooldowns, and re-reads the `knowledge/` corpus from disk — so editing a document between demo runs takes effect without a restart. Handy between demo runs.
          */
         post: operations["reset_api_dev_reset_post"];
         delete?: never;
@@ -344,7 +344,11 @@ export interface paths {
         get: operations["get_meeting_api_meetings__meeting_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a session
+         * @description Removes the session and its archived bundle from disk. Irreversible. A live session is stopped first.
+         */
+        delete: operations["delete_meeting_api_meetings__meeting_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -361,9 +365,35 @@ export interface paths {
         put?: never;
         /**
          * Ask Kindred a question directly
-         * @description Type a question from the dashboard. With `speak: true` Kindred also says the answer into the meeting. **Milestone 4** replaces the canned answer below with real retrieval and reasoning; the response shape is final.
+         * @description Type a question from the dashboard. With `speak: true` Kindred also says the answer into the meeting.
+         *
+         *     This runs the same retrieval and reasoning that the spoken wake word does, so it is a genuine substitute rather than a demo prop: if wake detection misfires on stage, type the question and Kindred still answers correctly, out loud.
+         *
+         *     With no `ANTHROPIC_API_KEY` configured it returns a placeholder answer so the card, citations, and speaking flow can still be built against it.
          */
         post: operations["ask_api_meetings__meeting_id__ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meetings/{meeting_id}/bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything a review page needs, in one request
+         * @description Meeting, full finalized transcript, interjections, and aggregated sources. One call so a review page renders without waterfalling four requests.
+         *
+         *     Snapshot only. Live views should use `WS /api/meetings/{id}/live` instead.
+         */
+        get: operations["get_bundle_api_meetings__meeting_id__bundle_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -379,6 +409,26 @@ export interface paths {
         };
         /** List interjections for a meeting */
         get: operations["get_interjections_api_meetings__meeting_id__interjections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meetings/{meeting_id}/interjections/{interjection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one interjection
+         * @description For deep-linking a single claim from a shared review URL.
+         */
+        get: operations["get_interjection_api_meetings__meeting_id__interjections__interjection_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -438,6 +488,46 @@ export interface paths {
          * @description Hard override. While muted Kindred will not post to chat or speak.
          */
         post: operations["mute_api_meetings__meeting_id__mute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meetings/{meeting_id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search a session transcript
+         * @description Case-insensitive substring match over finalized transcript, optionally scoped to one speaker. Returns segments in chronological order.
+         */
+        get: operations["search_transcript_api_meetings__meeting_id__search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meetings/{meeting_id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Documents cited during a session
+         * @description What Kindred actually read before it spoke, aggregated from the citations on this session's interjections — not merely what was available to search. Ordered by citation count. This is the audit surface: it answers whether Kindred looked at the right thing.
+         */
+        get: operations["get_sources_api_meetings__meeting_id__sources_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -795,6 +885,30 @@ export interface components {
              * @example 0.91
              */
             relevance: number;
+        };
+        /**
+         * CitedDocument
+         * @description A document Kindred actually cited during a session.
+         *
+         *     Aggregated from the citations on that session's interjections, so this is what was
+         *     genuinely used, not merely what was available to search. That distinction is the
+         *     point of the review screen: it lets a human audit whether Kindred read the right
+         *     thing before it spoke.
+         */
+        CitedDocument: {
+            /**
+             * Citation Count
+             * @description Total citations across all interjections.
+             */
+            citation_count: number;
+            /** Document Id */
+            document_id: string;
+            /** Filename */
+            filename: string;
+            /** Interjection Ids */
+            interjection_ids?: string[];
+            /** Quotes */
+            quotes?: components["schemas"]["SourceQuote"][];
         };
         /** ClarificationAskedData */
         ClarificationAskedData: {
@@ -1299,6 +1413,25 @@ export interface components {
              */
             title: string;
         };
+        /**
+         * MeetingBundle
+         * @description Everything a review page needs, in one request.
+         *
+         *     The alternative is four round-trips (meeting, transcript, interjections, sources)
+         *     that all have to land before anything can render. For a page whose whole job is
+         *     reading a finished meeting, one call is simpler on both sides.
+         *
+         *     Live views should use the WebSocket instead — this is a snapshot, not a stream.
+         */
+        MeetingBundle: {
+            /** Interjections */
+            interjections: components["schemas"]["Interjection"][];
+            meeting: components["schemas"]["Meeting"];
+            /** Sources */
+            sources: components["schemas"]["CitedDocument"][];
+            /** Transcript */
+            transcript: components["schemas"]["TranscriptSegment"][];
+        };
         /** MeetingCreate */
         MeetingCreate: {
             /**
@@ -1358,7 +1491,10 @@ export interface components {
              */
             type: "meeting.state_changed";
         };
-        /** MeetingStats */
+        /**
+         * MeetingStats
+         * @description Counts for the session list. Cheap to render a row from, no extra fetches.
+         */
         MeetingStats: {
             /**
              * Duration Seconds
@@ -1371,15 +1507,40 @@ export interface components {
              */
             interjection_count: number;
             /**
+             * Participant Count
+             * @description Distinct participants seen.
+             * @default 0
+             */
+            participant_count: number;
+            /**
+             * Source Document Count
+             * @description Distinct documents cited during this session.
+             * @default 0
+             */
+            source_document_count: number;
+            /**
              * Utterance Count
              * @default 0
              */
             utterance_count: number;
+            /**
+             * Wake Count
+             * @description Times Kindred was addressed by name.
+             * @default 0
+             */
+            wake_count: number;
         };
         /** MuteRequest */
         MuteRequest: {
             /** Muted */
             muted: boolean;
+        };
+        /** Page[CitedDocument] */
+        Page_CitedDocument_: {
+            /** Items */
+            items: components["schemas"]["CitedDocument"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** Page[Document] */
         Page_Document_: {
@@ -1794,6 +1955,28 @@ export interface components {
              * @enum {string}
              */
             type: "snapshot";
+        };
+        /**
+         * SourceQuote
+         * @description One passage Kindred cited, and which interjection used it.
+         */
+        SourceQuote: {
+            /** Chunk Id */
+            chunk_id: string;
+            /** Interjection Id */
+            interjection_id: string;
+            /**
+             * Page
+             * @description 1-indexed. Null for non-paginated sources.
+             */
+            page?: number | null;
+            /**
+             * Quote
+             * @description The retrieved span, verbatim. Render as-is — it is the evidence.
+             */
+            quote: string;
+            /** Relevance */
+            relevance: number;
         };
         /**
          * SpeakRandomRequest
@@ -3268,6 +3451,64 @@ export interface operations {
             };
         };
     };
+    delete_meeting_api_meetings__meeting_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ack"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     ask_api_meetings__meeting_id__ask_post: {
         parameters: {
             query?: never;
@@ -3330,6 +3571,64 @@ export interface operations {
             };
         };
     };
+    get_bundle_api_meetings__meeting_id__bundle_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingBundle"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_interjections_api_meetings__meeting_id__interjections_get: {
         parameters: {
             query?: {
@@ -3351,6 +3650,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_Interjection_"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_interjection_api_meetings__meeting_id__interjections__interjection_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+                interjection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Interjection"];
                 };
             };
             /** @description Bad request */
@@ -3529,6 +3887,129 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Meeting"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    search_transcript_api_meetings__meeting_id__search_get: {
+        parameters: {
+            query?: {
+                /** @description Substring to match. Empty returns everything. */
+                q?: string;
+                /** @description Restrict to one speaker. */
+                person_id?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TranscriptSegment_"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_sources_api_meetings__meeting_id__sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CitedDocument_"];
                 };
             };
             /** @description Bad request */

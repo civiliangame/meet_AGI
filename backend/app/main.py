@@ -25,9 +25,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import archive
 from .api import api_router
 from .config import get_config
 from .errors import ApiError
+from .knowledge import get_knowledge_base
 from .runtime import get_runtime, shutdown_runtime
 from .schemas import ErrorResponse, Schema
 
@@ -175,6 +177,14 @@ async def handle_validation_error(
 async def on_startup() -> None:
     config = get_config()
     log.info("meet_AGI backend starting")
+
+    # Restore past sessions before serving. The dashboard's job is reviewing finished
+    # meetings, so an empty session list after a restart is a broken product, not a
+    # cold cache.
+    restored = archive.load_all()
+    archive.start_autosave()
+    log.info("restored %d archived session(s)", restored)
+
     if not config.recall_api_key:
         log.warning(
             "RECALL_API_KEY unset — real meetings unavailable. "
@@ -184,6 +194,9 @@ async def on_startup() -> None:
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
+    # Flush before tearing down the runtime; a session lost on shutdown is a session
+    # nobody can review.
+    await archive.stop_autosave()
     await shutdown_runtime()
     log.info("meet_AGI backend stopped")
 
@@ -199,6 +212,7 @@ def health() -> Health:
     missing, instead of letting the user click something that cannot work.
     """
     config = get_config()
+    knowledge = get_knowledge_base()
 
     # A health check that 500s tells you nothing. If the runtime cannot be built at all
     # — a misconfigured provider, a missing asset — report that as degraded rather than
@@ -239,8 +253,38 @@ def health() -> Health:
             ),
             HealthProvider(
                 name="voice",
-                configured=True,
-                detail=f"voice provider: {config.voice_provider}",
+                # `auto` is the default, so reporting it back tells you nothing. Report
+                # what it actually resolved to — the point of this endpoint on stage is
+                # to answer "is Kindred about to speak for real or play a canned clip?"
+                configured=runtime.voice.name != "sample",
+                detail=(
+                    f"Inworld TTS ({config.inworld_voice_id}, {config.inworld_model_id})"
+                    if runtime.voice.name == "inworld"
+                    else "INWORLD_API_KEY unset — Kindred will play pre-baked sample clips"
+                ),
+            ),
+            HealthProvider(
+                name="reasoning",
+                configured=bool(config.anthropic_api_key),
+                detail=(
+                    f"Claude ({config.anthropic_model}); triage on "
+                    f"{config.anthropic_fast_model}"
+                    if config.anthropic_api_key
+                    else (
+                        "ANTHROPIC_API_KEY unset — the pipeline falls back to the "
+                        "fixture's canned interjections"
+                    )
+                ),
+            ),
+            HealthProvider(
+                name="knowledge",
+                configured=knowledge.chunk_count > 0,
+                detail=(
+                    f"{knowledge.chunk_count} chunks across {knowledge.document_count} "
+                    f"documents: {', '.join(knowledge.filenames)}"
+                    if knowledge.chunk_count
+                    else "no .txt files found in knowledge/ — nothing to check claims against"
+                ),
             ),
             HealthProvider(
                 name="harness",
