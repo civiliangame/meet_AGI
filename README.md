@@ -14,7 +14,8 @@ speaker on a separate audio track, knows who each person is, and stays quiet.
 
 Built at the AGI House hackathon on [Inworld](https://inworld.ai) (voice),
 [Character.AI](https://character.ai) (persona), and [Tenstorrent](https://tenstorrent.com)
-(ambient triage inference), with [Recall.ai](https://recall.ai) for meeting I/O.
+(Qwen inference — set `LLM_PROVIDER=tenstorrent`), with [Recall.ai](https://recall.ai)
+for meeting I/O.
 
 ---
 
@@ -29,15 +30,34 @@ end. See **[DESIGN.md](./DESIGN.md)** for the full architecture.
 | 1 — Config CRUD (people, documents, integrations, settings) | ✅ done, in-memory |
 | 2 — Harness emits the full live event stream | ✅ done |
 | 3 — Document retrieval | ✅ done over `knowledge/*.txt` (no pgvector — see below) |
-| 4 — Ambient loop: triage → reason → interjection | ✅ done, real Claude reasoning |
-| 5 — Recall bot join + per-speaker transcript | 🟡 bot join, audio out, and chat posting done; live transcript ingestion open |
+| 4 — Ambient loop: triage → reason → interjection | ✅ done, real reasoning on Gemini |
+| 5 — Recall bot join + per-speaker transcript | ✅ done, live |
 | 6 — Chat alert posting | ✅ done, server-capped at 500 chars |
 | 7 — Speech mode with real TTS | ✅ done on Inworld |
 | 8 — Sentence-level streaming | ⬜ open (single clip per answer today) |
+| — Video tile on the bot's camera | ✅ status card, pushed on every state change |
 
-**Transcript ingestion is the one gap in the live path.** Everything downstream of a
-finalized utterance is real; the harness supplies those utterances today, and Recall's
-transcript stream will call the same function (`app.pipeline.handle_final_segment`).
+The whole loop runs against a real Google Meet: the bot hears you, wakes on "Hey AGI",
+answers out loud, and types the answer into chat. Say it and it responds in a few
+seconds.
+
+### Hearing the meeting
+
+Recall pushes real-time transcript to this backend, so it needs a **public https URL**:
+
+```bash
+ngrok http --url=<your-static-domain> 5000     # then set PUBLIC_BASE_URL to that domain
+```
+
+Without `PUBLIC_BASE_URL` the bot joins and speaks but never hears, and the wake word
+silently never fires — `GET /api/health` and a startup warning both call this out.
+
+Recall streams transcript **word by word**, so `app/ingest/recall_live.py` buffers per
+speaker and flushes an utterance on terminal punctuation or a ~1s silence gap
+(`TRANSCRIPT_SILENCE_MS`). That is what "after every person finishes speaking" actually
+means in practice, and it is why wake matching sees `"Hey AGI, what does the deck say"`
+rather than the single word `"hey"`. The flushed segment goes to the same
+`handle_final_segment` the fixture harness calls.
 
 ## The loop
 
@@ -59,6 +79,19 @@ and a claim that contradicts what someone else already said in this meeting.
 **Reasoning runs on Gemini** (`gemini-3.5-flash-lite`), roughly 1-2s per call. Claude is
 still wired behind the same `LLMProvider` seam — set `LLM_PROVIDER=claude` to switch.
 
+**Every chat message names its trigger.** Posts open with `Because you mentioned <topic>:`
+so a line arriving 20 seconds later isn't a non-sequitur. The model supplies the topic;
+the prefix is applied server-side in `app/chat/sinks.py`, so it can't end up doubled or
+missing depending on how the model felt that turn.
+
+**The bot's camera shows what Kindred is doing.** `app/video/card.py` renders a 1280x720
+JPEG — agent state, the last headline, its citation — and pushes it via Recall's
+`output_video` whenever state changes. Recall's other path, Output Media, streams real
+MP4/GIF over a socket and is what you'd want for animation or an avatar; a replaceable
+still is a fraction of the work and reads as live. The card observes the event bus rather
+than being called from each site, because `agent.state_changed` is published from three
+places and wiring only one leaves the tile stuck on `thinking`.
+
 **Kindred talks while it thinks.** Retrieval plus generation is a couple of seconds, and
 to a room that just asked a question out loud, silence reads as "it didn't hear me". So
 it plays a short filler first — *"Great question, on it now."* — in its own voice, then
@@ -68,7 +101,7 @@ serialized per meeting, which is what guarantees the answer waits for the filler
 than talking over it.
 
 **Retrieval is plain text, deliberately.** `knowledge/*.txt` is chunked on `##` headings
-and scored by keyword overlap, then Claude reads the top handful. The corpus is small
+and scored by keyword overlap, then the model reads the top handful. The corpus is small
 enough that a frontier model beats cosine similarity over it, and it keeps Postgres,
 pgvector, and an embedding provider off the critical path. `app/knowledge/base.py`
 `retrieve()` is the seam if that stops being true. Files map back onto the seeded
@@ -83,6 +116,34 @@ pgvector, and an embedding provider off the critical path. `app/knowledge/base.p
 - [Verified platform capabilities](./DESIGN.md#2-confirmed-platform-capabilities)
 
 ## Run it
+
+One command puts Kindred in the default meeting, starting the backend if it isn't up:
+
+```bash
+python scripts/kindred.py            # join, after a preflight
+python scripts/kindred.py --watch    # ...and tail what it hears and says
+python scripts/kindred.py --check    # preflight only, dispatch nothing
+python scripts/kindred.py --leave    # pull the bot out
+python scripts/kindred.py <meet-url> # a different meeting
+```
+
+**It always restarts the backend.** Reusing a server that is already listening means a
+code change silently does not take effect, and the symptom is a feature that "doesn't
+work" while the old build quietly serves. Before killing it, the script asks that server
+to pull its bots out of their meetings — a Recall bot is a server-side entity, so killing
+the process that dispatched it only orphans it in the call until Recall's timeout. After
+the restart it sweeps Recall for any bot a previous crash left behind.
+
+It refuses to kill a process whose command line is not a Kindred server: port 5000 is
+also home to Flask and macOS AirPlay Receiver, and taking one of those down because it
+happens to hold the port is worse than stopping. `--force` overrides.
+
+The preflight refuses to dispatch when something is actually broken — most usefully it
+round-trips `PUBLIC_BASE_URL` to prove the tunnel is *up*, not merely configured. A dead
+tunnel produces a bot that joins, speaks, and never hears, which is indistinguishable
+from a working one until someone says the wake word.
+
+### Running the pieces by hand
 
 No database, no API keys, no internet connection required.
 
@@ -123,6 +184,13 @@ cp .env.example .env      # then fill in GEMINI_API_KEY and INWORLD_API_KEY
 
 The test suite pins both providers off (`tests/conftest.py`), so it behaves the same
 whether or not you have keys locally.
+
+`LLM_PROVIDER` picks the reasoning backend: `auto` (Gemini, then Claude, then
+Tenstorrent), or force one with `gemini`, `claude`, `tenstorrent`, or `none`. Setting
+`LLM_PROVIDER=tenstorrent` routes both loops to `Qwen/Qwen3-32B` on Tenstorrent hardware
+— no code change, and `GET /api/health` reports which one is actually live. A
+`TENSTORRENT_API_KEY` on its own will not take over from Gemini; it sits last in the
+`auto` chain, so flipping the flag is the deliberate act.
 
 `autonomy` controls how far an interjection travels: `silent` (dashboard only),
 `propose` (waits for approval), `auto_post` (types into the meeting — the default).
@@ -188,6 +256,13 @@ Two things worth knowing:
   a spoken disclosure on join.
 - **`RECALL_API_KEY` is region-scoped** (`RECALL_REGION`, default `us-west-2`). A key
   from another region returns 401 on every call, which reads like a bad key.
+
+And one for Tenstorrent, if you switch to it:
+
+- **Do not "upgrade" `TENSTORRENT_MODEL` to `Qwen/Qwen3-VL-32B-Instruct`.** It is the
+  newer model in the catalogue and it accepts `response_format` and then ignores it —
+  HTTP 200, wrong JSON shape, no error anywhere. Every reasoning call here is
+  schema-constrained. `Qwen/Qwen3-32B` enforces the schema.
 
 Regenerate the sample clips — Windows SAPI where available, ffmpeg tones otherwise —
 with `python scripts/make_sample_audio.py --force`.

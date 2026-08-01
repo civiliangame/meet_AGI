@@ -23,6 +23,42 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+CHAT_PREFIX = "Because you mentioned {topic}:"
+"""Every chat message names what prompted it before saying anything else.
+
+A line of reasoning arriving in chat with no anchor reads as a non-sequitur — people
+have moved on by the time it lands, and the first thing they do is scroll up to work out
+what it is about. Naming the trigger costs ~30 characters of the 500 and removes that
+step entirely.
+
+Applied server-side rather than asked for in the prompt: the model is told not to write
+it, so there is exactly one place it can come from and it cannot end up doubled or
+missing depending on how the model felt about the instruction that turn.
+"""
+
+_GENERIC_TOPIC = "that"
+
+
+def with_trigger_prefix(message: str, topic: str | None) -> str:
+    """Prepend "Because you mentioned <topic>:" to a chat message.
+
+    Idempotent — a message that already carries the prefix is returned untouched, so
+    re-posting an approved interjection cannot stack it twice.
+    """
+    message = message.strip()
+    if message.lower().startswith("because you mentioned"):
+        return message
+
+    cleaned = " ".join((topic or "").split()).strip(" .,:;!?").casefold()
+    prefix = CHAT_PREFIX.format(topic=cleaned or _GENERIC_TOPIC)
+
+    # Lowercase a leading capital so the sentence reads as one: "Because you mentioned
+    # churn: enterprise churn is 1.2%" rather than "...: Enterprise churn is 1.2%".
+    if message and message[0].isupper() and not message[:4].isupper():
+        message = message[0].lower() + message[1:]
+    return f"{prefix} {message}"
+
+
 def fit_to_limit(text: str, limit: int = CHAT_ALERT_MAX_CHARS) -> str:
     """Collapse whitespace and hard-cap to `limit` characters.
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.chat.sinks import NullChatSink, fit_to_limit
+from app.chat.sinks import NullChatSink, fit_to_limit, with_trigger_prefix
 from app.knowledge import get_knowledge_base
 from app.pipeline.gate import InterjectionGate
 from app.pipeline.triage import heuristic_is_checkable
@@ -192,3 +192,37 @@ class TestRetrieval:
         """A pronoun-heavy question must not leave the model with nothing to read."""
         text, chunks = get_knowledge_base().context_for("what about that", top_k=3)
         assert chunks and text
+
+
+class TestTriggerPrefix:
+    """Every chat message names what prompted it, so it never reads as a non-sequitur."""
+
+    def test_prepends_the_topic(self) -> None:
+        assert with_trigger_prefix("Enterprise churn is 1.2%.", "enterprise churn") == (
+            "Because you mentioned enterprise churn: enterprise churn is 1.2%."
+        )
+
+    def test_lowercases_the_first_word_so_it_reads_as_one_sentence(self) -> None:
+        result = with_trigger_prefix("The Q3 deck says -12.1%.", "the revenue number")
+        assert result.startswith("Because you mentioned the revenue number: the Q3 deck")
+
+    def test_leaves_acronyms_alone(self) -> None:
+        assert "ARR is flat" in with_trigger_prefix("ARR is flat", "revenue")
+
+    def test_falls_back_when_the_model_omits_a_topic(self) -> None:
+        assert with_trigger_prefix("Churn is up.", "") == "Because you mentioned that: churn is up."
+        assert with_trigger_prefix("Churn is up.", None).startswith("Because you mentioned that:")
+
+    def test_strips_stray_punctuation_and_case_from_the_topic(self) -> None:
+        assert with_trigger_prefix("x", "  Mid-Market Churn.  ").startswith(
+            "Because you mentioned mid-market churn:"
+        )
+
+    def test_is_idempotent(self) -> None:
+        once = with_trigger_prefix("churn is up.", "churn")
+        assert with_trigger_prefix(once, "churn") == once
+
+    def test_still_fits_the_platform_limit(self) -> None:
+        prefixed = with_trigger_prefix("word " * 300, "the revenue number")
+        assert len(fit_to_limit(prefixed)) <= CHAT_ALERT_MAX_CHARS
+        assert fit_to_limit(prefixed).startswith("Because you mentioned")

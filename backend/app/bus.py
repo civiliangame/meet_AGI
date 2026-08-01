@@ -100,6 +100,28 @@ class Channel:
 class EventBus:
     def __init__(self) -> None:
         self._channels: dict[str, Channel] = {}
+        self._observers: list[Any] = []
+
+    def observe(self, callback: Any) -> None:
+        """Call `callback(frame)` synchronously for every published frame.
+
+        For things that need to react to the whole event stream rather than serve one
+        client — the bot's video tile today. Distinct from `subscribe()`, which exists
+        to feed a WebSocket and therefore has a queue, a replay buffer, and a
+        backpressure policy that a passive listener neither needs nor should be subject
+        to being dropped by.
+
+        Observers must not raise and must not block; one that does is logged and
+        skipped, because a broken listener must not take down the event stream.
+        """
+        self._observers.append(callback)
+
+    def _notify(self, frame: dict[str, Any]) -> None:
+        for observer in self._observers:
+            try:
+                observer(frame)
+            except Exception:
+                log.exception("bus observer failed on %s", frame.get("type"))
 
     def channel(self, name: str) -> Channel:
         if name not in self._channels:
@@ -111,7 +133,9 @@ class EventBus:
         return self.channel(GLOBAL_CHANNEL)
 
     def publish_meeting(self, meeting_id: str, event_type: str, data: Any) -> dict[str, Any]:
-        return self.channel(meeting_id).publish(event_type, data, meeting_id=meeting_id)
+        frame = self.channel(meeting_id).publish(event_type, data, meeting_id=meeting_id)
+        self._notify(frame)
+        return frame
 
     def publish_global(
         self, event_type: str, data: Any, meeting_id: str | None = None

@@ -33,8 +33,8 @@ class AppConfig(BaseSettings):
         default="auto",
         description=(
             "Reasoning backend. `auto` prefers Gemini when GEMINI_API_KEY is set, then "
-            "Claude, then falls back to the fixture's canned output. Force one with "
-            "`gemini`, `claude`, or `none`."
+            "Claude, then Tenstorrent, then falls back to the fixture's canned output. "
+            "Force one with `gemini`, `claude`, `tenstorrent`, or `none`."
         ),
     )
 
@@ -69,6 +69,32 @@ class AppConfig(BaseSettings):
         description="Used for triage when Claude is the active provider.",
     )
 
+    tenstorrent_api_key: str | None = Field(
+        default=None,
+        description=(
+            "Qwen served on Tenstorrent hardware, through an OpenAI-compatible endpoint. "
+            "Set `LLM_PROVIDER=tenstorrent` to route reasoning here instead of Gemini."
+        ),
+    )
+    tenstorrent_base_url: str = Field(
+        default="https://console.tenstorrent.com/v1",
+        description="OpenAI-compatible base. `GET {base}/models` lists what a key can reach.",
+    )
+    tenstorrent_model: str = Field(
+        default="Qwen/Qwen3-32B",
+        description=(
+            "The catalogue also serves `Qwen/Qwen3-VL-32B-Instruct`, which is the newer "
+            "model and is deliberately not the default: it accepts `response_format` and "
+            "then ignores it, answering HTTP 200 in whatever JSON shape it likes. Every "
+            "call the pipeline makes is schema-constrained, so that is unusable. "
+            "Qwen3-32B enforces the schema."
+        ),
+    )
+    tenstorrent_fast_model: str = Field(
+        default="Qwen/Qwen3-32B",
+        description="Triage. The same model — the catalogue has no smaller Qwen.",
+    )
+
     @property
     def resolved_llm_provider(self) -> str:
         """Which reasoning backend `auto` actually picks. `none` means canned output."""
@@ -78,6 +104,10 @@ class AppConfig(BaseSettings):
             return "gemini"
         if self.anthropic_api_key:
             return "claude"
+        # Last in the chain on purpose: a Tenstorrent key sitting in `.env` should not
+        # silently take over from Gemini. Flipping LLM_PROVIDER is the deliberate act.
+        if self.tenstorrent_api_key:
+            return "tenstorrent"
         return "none"
 
     inworld_api_key: str | None = None

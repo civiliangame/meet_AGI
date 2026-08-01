@@ -25,7 +25,7 @@ for _var in (
     "ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
     "CHARACTERAI_API_KEY",
-    "TENSTORRENT_ENDPOINT",
+    "TENSTORRENT_API_KEY",
 ):
     os.environ[_var] = ""
 
@@ -54,6 +54,23 @@ def _clear_caches():
         if cache_clear is not None:
             cache_clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _isolate_provider_cache():
+    """Clear the memoized reasoning provider around every test.
+
+    `get_llm_provider` is `lru_cache`d so the process builds one client, which is right
+    in production and wrong in a suite: the first test to call it fixes the answer for
+    every test after it. A test that flips `LLM_PROVIDER` and expects a different
+    provider then passes alone and fails in the full run, purely on ordering.
+
+    Clearing on the way out as well as in keeps a test's own override from leaking
+    forward.
+    """
+    get_llm_provider.cache_clear()
+    yield
+    get_llm_provider.cache_clear()
 
 
 @pytest.fixture(autouse=True)

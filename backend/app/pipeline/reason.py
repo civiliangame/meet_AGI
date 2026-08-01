@@ -43,6 +43,8 @@ class Verdict:
     kind: str
     """contradiction | correction | context | none"""
     confidence: float
+    topic: str
+    """Short noun phrase naming what triggered this. Renders in the chat prefix."""
     headline: str
     chat_alert: str
     body_md: str
@@ -58,6 +60,8 @@ class Answer:
     """Speech mode's response to a direct question."""
 
     spoken: str
+    topic: str
+    """Short noun phrase naming what was asked about. Renders in the chat prefix."""
     chat_alert: str
     headline: str
     body_md: str
@@ -65,7 +69,7 @@ class Answer:
     citations: list[Citation] = field(default_factory=list)
 
 
-NO_FLAG = Verdict(kind="none", confidence=0.0, headline="", chat_alert="", body_md="")
+NO_FLAG = Verdict(kind="none", confidence=0.0, topic="", headline="", chat_alert="", body_md="")
 
 
 def _citations(chunks: list[Chunk], chunk_ids: list[str], quotes: list[str]) -> list[Citation]:
@@ -117,6 +121,7 @@ async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
     return Verdict(
         kind=kind,
         confidence=float(result.get("confidence", 0.0)),
+        topic=str(result.get("topic", "")).strip(),
         headline=str(result.get("headline", "")).strip(),
         chat_alert=str(result.get("chat_alert", "")).strip(),
         body_md=str(result.get("body_md", "")).strip(),
@@ -162,6 +167,7 @@ async def answer_question(*, question: str, asker: str, transcript: str) -> Answ
 
     return Answer(
         spoken=spoken,
+        topic=str(result.get("topic", "")).strip(),
         chat_alert=str(result.get("chat_alert", "")).strip() or spoken,
         headline=str(result.get("headline", "")).strip() or spoken[:100],
         body_md=str(result.get("body_md", "")).strip() or spoken,

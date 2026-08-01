@@ -53,9 +53,15 @@ Fields:
 conflict. Be calibrated, not encouraging.
 - headline: one sentence, under 100 characters, naming who said what and what it \
 conflicts with.
+- topic: the thing that was said which you are responding to, as a short noun phrase of \
+two to five words, lowercase, no trailing punctuation. It is rendered as "Because you \
+mentioned <topic>:" in front of the chat message, so it has to read naturally in that \
+slot. Name the subject, not the speaker: "the new-product revenue number", "mid-market \
+churn", "the Q4 pipeline". Never a full sentence, never "you said".
 - chat_alert: what gets typed into the meeting chat. Under 320 characters. Lead with the \
-conflict, give the specific number or fact, then the likely reconciliation. No preamble, \
-no "I noticed", no links. This is a flag, not an argument.
+conflict, give the specific number or fact, then the likely reconciliation. Do not write \
+the "Because you mentioned" prefix yourself — it is prepended for you. No preamble, no \
+"I noticed", no links. This is a flag, not an argument.
 - body_md: the full reasoning in markdown for the dashboard. State the claim, state what \
 the evidence says, explain the likely reconciliation, and say why it matters. A few \
 short paragraphs.
@@ -75,6 +81,7 @@ AMBIENT_SCHEMA: dict[str, Any] = {
             "enum": ["contradiction", "correction", "context", "none"],
         },
         "confidence": {"type": "number"},
+        "topic": {"type": "string"},
         "headline": {"type": "string"},
         "chat_alert": {"type": "string"},
         "body_md": {"type": "string"},
@@ -84,6 +91,7 @@ AMBIENT_SCHEMA: dict[str, Any] = {
     "required": [
         "verdict",
         "confidence",
+        "topic",
         "headline",
         "chat_alert",
         "body_md",
@@ -128,8 +136,13 @@ Fields:
 citations, no "per slide 14 of the Q3 board deck" — say "the Q3 deck says". Write \
 figures the way a person reads them aloud.
   - Do not greet, do not restate the question, do not offer to help further.
+- topic: what they asked about, as a short noun phrase of two to five words, lowercase, \
+no trailing punctuation. It is rendered as "Because you mentioned <topic>:" in front of \
+the chat message, so it has to read naturally in that slot — "enterprise churn", "the new \
+product line", "mid-market pricing".
 - chat_alert: the same answer for the meeting chat, under 320 characters. This one may \
-name the document and page, because it is being read rather than heard.
+name the document and page, because it is being read rather than heard. Do not write the \
+"Because you mentioned" prefix yourself — it is prepended for you.
 - headline: one sentence under 100 characters summarizing the answer.
 - body_md: the fuller answer in markdown for the dashboard, including the reasoning and \
 any caveat that did not fit in one spoken sentence.
@@ -143,6 +156,7 @@ ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "spoken": {"type": "string"},
+        "topic": {"type": "string"},
         "chat_alert": {"type": "string"},
         "headline": {"type": "string"},
         "body_md": {"type": "string"},
@@ -152,6 +166,7 @@ ANSWER_SCHEMA: dict[str, Any] = {
     },
     "required": [
         "spoken",
+        "topic",
         "chat_alert",
         "headline",
         "body_md",

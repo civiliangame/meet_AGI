@@ -54,6 +54,19 @@ def get_llm_provider() -> LLMProvider | None:
             fast_model=config.anthropic_fast_model,
         )
 
+    if resolved == "tenstorrent":
+        if not config.tenstorrent_api_key:
+            logger.warning("llm_provider is `tenstorrent` but TENSTORRENT_API_KEY is unset")
+            return None
+        from .tenstorrent import TenstorrentProvider
+
+        return TenstorrentProvider(
+            api_key=config.tenstorrent_api_key,
+            model=config.tenstorrent_model,
+            fast_model=config.tenstorrent_fast_model,
+            base_url=config.tenstorrent_base_url,
+        )
+
     return None
 
 

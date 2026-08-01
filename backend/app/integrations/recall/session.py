@@ -26,9 +26,9 @@ import logging
 from dataclasses import dataclass, field
 
 from ...audio import AudioClip, RecallAudioSink
-from ...config import get_config
 from ...bus import EventBus
 from ...bus import bus as default_bus
+from ...config import get_config
 from ...ids import PREFIX_MEETING, new_id
 from ...providers.voice import get_sample_clips
 from ...schemas import (

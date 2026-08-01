@@ -99,7 +99,14 @@ class RecallClient:
             )
         return self._client
 
-    async def _request(self, method: str, path: str, *, json: dict[str, Any] | None = None) -> Any:
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: Any | None = None,
+    ) -> Any:
         client = self._ensure_client()
         # A rate-limited request was never executed, so retrying it is always safe.
         # A 5xx or a dropped connection might have been executed, so only GET — the one
@@ -110,7 +117,7 @@ class RecallClient:
 
         for attempt in range(self._max_retries):
             try:
-                response = await client.request(method, path, json=json)
+                response = await client.request(method, path, json=json, params=params)
             except httpx.HTTPError as exc:
                 last_error = exc
                 if not retry_server_errors or attempt == self._max_retries - 1:
@@ -248,6 +255,17 @@ class RecallClient:
         logger.info("recall bot %s dispatched to %s", bot.get("id"), meeting_url)
         return bot
 
+    async def list_bots(self, *, statuses: list[str] | None = None) -> list[dict[str, Any]]:
+        """Bots in the workspace, optionally filtered by status.
+
+        Used to find bots a previous backend process left behind. A bot is a
+        Recall-side entity: killing the process that dispatched it does not remove it
+        from the meeting, it just orphans it until `everyone_left_timeout` expires.
+        """
+        params = [("status", status) for status in (statuses or [])]
+        body = await self._request("GET", "/bot/", params=params or None)
+        return list((body or {}).get("results") or [])
+
     async def get_bot(self, bot_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/bot/{bot_id}/")
 
@@ -267,6 +285,19 @@ class RecallClient:
             "POST",
             f"/bot/{bot_id}/output_audio/",
             json={"kind": "mp3", "b64_data": b64_mp3(mp3)},
+        )
+
+    async def output_video(self, bot_id: str, jpeg: bytes) -> None:
+        """Replace the image on the bot's camera tile.
+
+        Meeting platforms model this as the bot's video stream, so this is what
+        "showing something in the meeting" means for a participant that is software.
+        Recall wants 1280x720 JPEG, at most 1.3 MB.
+        """
+        await self._request(
+            "POST",
+            f"/bot/{bot_id}/output_video/",
+            json={"kind": "jpeg", "b64_data": base64.b64encode(jpeg).decode("ascii")},
         )
 
     # --- Chat -----------------------------------------------------------------------

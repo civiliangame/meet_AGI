@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 
 from ..bus import bus
 from ..chat import chat_router
+from ..chat.sinks import with_trigger_prefix
 from ..errors import bad_request, not_found
 from ..integrations.recall import RecallError
 from ..pipeline import answer_question, engine
@@ -285,7 +286,7 @@ async def ask(
             meeting_id,
             kind=InterjectionKind.ANSWER,
             status=InterjectionStatus.POSTED,
-            chat_alert=answer.chat_alert,
+            chat_alert=with_trigger_prefix(answer.chat_alert, answer.topic),
             headline=answer.headline,
             body_md=answer.body_md,
             confidence=answer.confidence,

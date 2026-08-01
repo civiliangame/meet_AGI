@@ -708,6 +708,77 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "EvictedBot": {
+        "properties": {
+          "bot_id": {
+            "title": "Bot Id",
+            "type": "string"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "left": {
+            "description": "False when Recall refused the leave call.",
+            "title": "Left",
+            "type": "boolean"
+          },
+          "meeting_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Url"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "bot_id",
+          "meeting_url",
+          "status",
+          "left",
+          "detail"
+        ],
+        "title": "EvictedBot",
+        "type": "object"
+      },
+      "EvictionReport": {
+        "properties": {
+          "checked": {
+            "description": "Bots Recall reported as still in a call.",
+            "title": "Checked",
+            "type": "integer"
+          },
+          "evicted": {
+            "items": {
+              "$ref": "#/components/schemas/EvictedBot"
+            },
+            "title": "Evicted",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked",
+          "evicted"
+        ],
+        "title": "EvictionReport",
+        "type": "object"
+      },
       "Fixture": {
         "properties": {
           "description": {
@@ -3148,6 +3219,48 @@
         "title": "TriageSettings",
         "type": "object"
       },
+      "TunnelStatus": {
+        "description": "Whether Recall can actually reach this backend to deliver transcript.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public webhook URL, token redacted.",
+            "title": "Url"
+          },
+          "wake_word": {
+            "title": "Wake Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "reachable",
+          "url",
+          "wake_word",
+          "detail"
+        ],
+        "title": "TunnelStatus",
+        "type": "object"
+      },
       "Utterance": {
         "properties": {
           "clip_id": {
@@ -3637,6 +3750,88 @@
         ]
       }
     },
+    "/api/dev/evict-bots": {
+      "post": {
+        "description": "Asks Recall which bots are still in a call and tells each one to leave.\n\nA bot is a Recall-side entity: killing the backend that dispatched it does not remove it from the meeting, it just orphans it there until Recall's `everyone_left_timeout` expires. After a hard restart that leaves a silent, deaf Kindred sitting in the call next to the new one.\n\n`keep` spares a bot \u2014 normally the one the caller just dispatched.",
+        "operationId": "evict_bots_api_dev_evict_bots_post",
+        "parameters": [
+          {
+            "description": "Bot id to leave running.",
+            "in": "query",
+            "name": "keep",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Bot id to leave running.",
+              "title": "Keep"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvictionReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Remove stray bots from every meeting",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
     "/api/dev/fixtures": {
       "get": {
         "operationId": "list_fixtures_api_dev_fixtures_get",
@@ -3898,6 +4093,68 @@
           }
         },
         "summary": "Reset all state",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/dev/tunnel": {
+      "get": {
+        "description": "Calls this server's own health endpoint back through `PUBLIC_BASE_URL`. That round trip is the only thing that proves the tunnel is up \u2014 a configured URL with a dead tunnel is indistinguishable from a working one until somebody says the wake word into a meeting and nothing happens.",
+        "operationId": "tunnel_status_api_dev_tunnel_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TunnelStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Can Recall reach us?",
         "tags": [
           "dev"
         ]
@@ -6785,6 +7042,82 @@
         "summary": "Upload a voice sample",
         "tags": [
           "people"
+        ]
+      }
+    },
+    "/api/recall/webhook/": {
+      "post": {
+        "description": "Called by Recall.ai during a live meeting, not by the frontend. Configured per bot via `recording_config.realtime_endpoints`, so it never appears in the Recall dashboard's webhook list.\n\nAlways answers 200, including on a rejected token or a malformed body: a non-2xx is retried 60 times and then the endpoint is disabled for the rest of the meeting.",
+        "operationId": "recall_webhook_api_recall_webhook__post",
+        "parameters": [
+          {
+            "description": "Shared secret.",
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "Shared secret.",
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ack"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Recall real-time events (transcript and participants)",
+        "tags": [
+          "recall"
         ]
       }
     },

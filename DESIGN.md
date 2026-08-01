@@ -245,12 +245,33 @@ All three sit behind provider seams. Only one is required to qualify.
 uses Inworld when `INWORLD_API_KEY` is set and falls back to pre-baked sample clips
 otherwise, so the audio path works with no key at all.
 
-### Tenstorrent — ambient triage. ⬜ Seam built, provider not.
-`pipeline/triage.py` is the highest-QPS decision in the system: it runs on every
-utterance of every meeting, forever, and it is small-model classification. That is
-exactly the workload that justifies dedicated inference hardware, and the cost argument
-is real. `settings.triage.provider` accepts `tenstorrent`; today the work is done by the
-heuristic plus Claude Haiku. **This is the cheapest sponsor to add and the first to cut.**
+### Tenstorrent — reasoning. ✅ Built.
+`providers/llm/tenstorrent.py`. Qwen on Tenstorrent hardware, through the
+OpenAI-compatible endpoint at `console.tenstorrent.com/v1`, behind the same
+`complete_json` contract as Gemini and Claude. Flip `LLM_PROVIDER=tenstorrent` and every
+reasoning call in both loops — triage, ambient, speech — goes to Tenstorrent instead.
+
+It landed as a whole-pipeline provider rather than the triage-only seam originally
+planned. `pipeline/triage.py` is still the best *argument* for the hardware — highest-QPS
+decision in the system, small-model classification, runs on every utterance forever — but
+the seam that already existed was `LLM_PROVIDER`, and a second parallel switch for one
+call site would have been the worse design. `settings.triage.provider` remains a runtime
+knob for choosing heuristic-vs-model; it does not pick the vendor.
+
+Two things about the endpoint are load-bearing and are documented at length in the
+provider module, because both fail silently:
+
+- **Thinking is on by default and must be turned off** via `chat_template_kwargs`. A
+  schema-constrained call with thinking enabled took 125s and still ran out of tokens
+  mid-object; the reasoning trace spends the whole `max_tokens` budget before the answer
+  starts, so it presents as truncated JSON rather than as a latency problem.
+- **`response_format` is enforced by `Qwen/Qwen3-32B` and ignored by
+  `Qwen/Qwen3-VL-32B-Instruct`.** The VL model is the newer of the two in the catalogue
+  and returns HTTP 200 with whatever shape it likes. Every call this pipeline makes is
+  schema-constrained, so Qwen3-32B is the default. `GET /v1/models` is the catalogue.
+
+Measured against the real schemas: triage 1.8s, ambient 14.0s, speech answer 9.3s. The
+answer path is over the §7 budget — see the note there.
 
 ### Character.AI — persona. ⬜ Settings field only.
 `settings.persona` exists in the contract; there is no `providers/persona/`. The intent
@@ -279,6 +300,12 @@ What separates "impressive" from "awkward", measured from question-end to first 
 and played when complete, which pushes first-audio to roughly 5–7s on a long answer.
 Generating sentence-by-sentence and playing each as it completes is the fix. Treat it as
 required before demo, not a nice-to-have.
+
+⚠️ **On Tenstorrent the answer call alone is ~9.3s** (measured, `Qwen/Qwen3-32B`, thinking
+off, real `ANSWER_SCHEMA`). That is over budget on its own, before TTS or Recall playback.
+The filler line — "let me look that up", pre-rendered at startup — is what makes this
+survivable, and it becomes load-bearing rather than polish when `LLM_PROVIDER=tenstorrent`.
+Gemini remains the default for speech mode.
 
 `speech_tail_padding_ms` exists because Recall buffers and mixes audio: playback finishes
 slightly after the POST returns, and without padding back-to-back clips clip each other's
@@ -445,7 +472,7 @@ characters cannot. Give it the most design attention.
 | Retrieval | Keyword prefilter over `.txt` in `knowledge/`. ⬜ Not pgvector. |
 | Frontend | Contract layer shipped; app framework is the frontend owner's call |
 | Contract | OpenAPI → `openapi-typescript` |
-| Reasoning | `claude-opus-5`, `claude-haiku-4-5` for triage |
+| Reasoning | Gemini by default; `LLM_PROVIDER` switches to Claude or Tenstorrent Qwen |
 | Voice | Inworld, with pre-baked sample clips as fallback |
 | Meeting I/O | Recall.ai |
 
@@ -500,8 +527,10 @@ sentence streaming. Do not cut 5b or 7.
 
 ## 13. Open questions
 
-1. **Tenstorrent credentials** — still unanswered, still the only sponsor item whose
-   critical path is account setup rather than code. The triage seam is ready for it.
+1. ~~**Tenstorrent credentials**~~ — resolved. Key is in `.env`, provider is built, and
+   `LLM_PROVIDER=tenstorrent` routes both loops to Qwen3-32B. Open sub-question: the
+   answer path is ~9.3s (§7), so whether Tenstorrent drives the *demo* or just proves the
+   integration depends on whether sentence-level streaming lands first.
 2. **Consent disclosure** — Recall can pin a chat message on join, and `--announce
    greeting` can speak one. Recommend turning one on by default; it preempts the obvious
    judge question about recording people.

@@ -32,6 +32,7 @@ import time
 from ..audio import AudioClip
 from ..bus import bus
 from ..chat import chat_router
+from ..chat.sinks import with_trigger_prefix
 from ..speech.fillers import SAMPLE_FILLER_CLIP_ID as FILLER_FALLBACK_CLIP_ID
 from ..schemas import (
     AgentState,
@@ -47,6 +48,7 @@ from ..schemas import (
     WakeDetectedData,
 )
 from ..store import store
+from ..video import card
 from . import reason
 from .context import ConversationMemory, Turn
 from .gate import InterjectionGate
@@ -230,11 +232,14 @@ class PipelineEngine:
             self._set_agent_state(meeting_id, AgentState.IDLE)
             return
 
+        # The prefix is stored on the interjection, not added at post time, so the
+        # dashboard shows byte-for-byte what the meeting saw.
+        chat_alert = with_trigger_prefix(answer.chat_alert, answer.topic)
         interjection = store.build_interjection(
             meeting_id,
             kind=InterjectionKind.ANSWER,
             status=InterjectionStatus.POSTED,
-            chat_alert=answer.chat_alert,
+            chat_alert=chat_alert,
             headline=answer.headline,
             body_md=answer.body_md,
             confidence=answer.confidence,
@@ -249,7 +254,7 @@ class PipelineEngine:
         # Speak first, type second. The room is waiting on audio; chat can lag.
         await self._say_text(meeting_id, answer.spoken)
         if store.settings.autonomy != Autonomy.SILENT:
-            await chat_router.post(meeting_id, answer.chat_alert)
+            await chat_router.post(meeting_id, chat_alert)
 
         bus.publish_meeting(
             meeting_id, "speech.answered", AnsweredData(interjection_id=interjection.id)
@@ -282,7 +287,7 @@ class PipelineEngine:
             meeting_id,
             kind=_KIND_BY_VERDICT.get(verdict.kind, InterjectionKind.CONTEXT),
             status=InterjectionStatus.POSTED if posting else InterjectionStatus.PROPOSED,
-            chat_alert=verdict.chat_alert,
+            chat_alert=with_trigger_prefix(verdict.chat_alert, verdict.topic),
             headline=verdict.headline,
             body_md=verdict.body_md,
             confidence=verdict.confidence,
@@ -298,7 +303,7 @@ class PipelineEngine:
         self.gate.record(meeting_id)
 
         if posting:
-            await chat_router.post(meeting_id, verdict.chat_alert)
+            await chat_router.post(meeting_id, interjection.chat_alert)
 
     # --- shared helpers --------------------------------------------------------------
 
@@ -308,6 +313,8 @@ class PipelineEngine:
         if meeting is not None:
             meeting.stats.interjection_count += 1
         bus.publish_meeting(meeting_id, "interjection.proposed", interjection)
+
+
 
     async def _say_text(self, meeting_id: str, text: str) -> None:
         await self._say(meeting_id, text=text)
@@ -396,6 +403,7 @@ class PipelineEngine:
         self._last_wake.pop(meeting_id, None)
         self._pending.pop(meeting_id, None)
         chat_router.detach(meeting_id)
+        card.forget(meeting_id)
 
     def reset(self) -> None:
         self.memory.reset()

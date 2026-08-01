@@ -32,6 +32,7 @@ from .config import get_config
 from .errors import ApiError
 from .knowledge import get_knowledge_base
 from .runtime import get_runtime, shutdown_runtime
+from .video import attach_to_bus
 from .schemas import ErrorResponse, Schema
 
 logging.basicConfig(
@@ -206,6 +207,9 @@ async def on_startup() -> None:
 
     asyncio.create_task(_warm_fillers(), name="warm-fillers")
 
+    # Mirror agent state onto the bot's camera tile for the rest of the process.
+    attach_to_bus()
+
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
@@ -226,9 +230,14 @@ def _reasoning_detail(config) -> str:
         return f"Gemini ({config.gemini_model}); triage on {config.gemini_fast_model}"
     if provider == "claude":
         return f"Claude ({config.anthropic_model}); triage on {config.anthropic_fast_model}"
+    if provider == "tenstorrent":
+        return (
+            f"Tenstorrent ({config.tenstorrent_model}); triage on "
+            f"{config.tenstorrent_fast_model}"
+        )
     return (
-        "no reasoning key set (GEMINI_API_KEY or ANTHROPIC_API_KEY) — the harness "
-        "replays its canned interjections instead"
+        "no reasoning key set (GEMINI_API_KEY, ANTHROPIC_API_KEY or "
+        "TENSTORRENT_API_KEY) — the harness replays its canned interjections instead"
     )
 
 
