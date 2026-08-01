@@ -2,58 +2,85 @@
 
 **A Google Meet copilot that actually speaks.**
 
-Codename for the agent: **Kindred**.
+The agent is called **Kindred**. The wake phrase is **"Hey AGI"** (with `Kindred` kept as
+an alias).
+
+> **Status: this document describes what is built.** Anything not yet implemented is
+> marked ⬜ and says so plainly. Last reconciled against the code at commit `b469122`.
+>
+> **The one thing that is not built is the one that matters most: Kindred cannot hear a
+> real meeting yet.** See §2.1.
 
 ---
 
 ## 1. What it is
 
-Kindred joins a Google Meet as a participant. It hears every speaker on a separate
-audio track, knows who each person is, and stays quiet by default.
+Kindred joins a Google Meet as a participant, hears every speaker on a separate audio
+track, knows who each person is, and stays quiet.
 
-It has two loops:
+Two loops, one entry point (`pipeline.handle_final_segment`, called once per finalized
+utterance):
 
-**Ambient loop (silent, always on).** Kindred listens for factual claims, checks them
-against the documents and context you gave it, and when it finds a real conflict it
-drops a one-line flag into the meeting chat with the full reasoning in the web app.
+**Ambient loop (silent, always on).** Triage every utterance for a checkable factual
+claim, retrieve against the document corpus, ask Claude whether the evidence conflicts,
+rate-limit, and if it survives all of that, type a one-line flag into the meeting chat
+with the full reasoning in the dashboard.
 
-**Speech mode (on demand).** Say "Kindred" and it wakes up, listens to your question,
-asks a clarifying question if the question is ambiguous, and answers out loud in the
-meeting.
+**Speech mode (on demand).** Say "Hey AGI" and Kindred wakes, captures the question,
+answers it out loud through Inworld TTS, and types a summary into chat.
 
 The difference from every other notetaker: it participates.
 
 ---
 
-## 2. Confirmed platform capabilities
+## 2. Platform capabilities
 
-Meeting ingestion runs on **Recall.ai**. Verified against their docs (2026-08-01):
+Meeting I/O runs on **Recall.ai**. Verified against their docs, then against their API.
 
-| Requirement | Google Meet | Mechanism |
+| Requirement | Platform | Built? |
 |---|---|---|
-| Bot joins meeting | ✅ | `POST /api/v1/bot` with `meeting_url` |
-| Per-speaker separated audio, real-time | ✅ (16 concurrent speakers) | `recording_config.audio_separate_raw = {}` + websocket subscribed to `audio_separate_raw.data`. Mono 16-bit signed LE PCM @ 16 kHz |
-| Real-time transcript with speaker attribution | ✅ | `transcript.data` events; built-in STT or Deepgram/AssemblyAI/ElevenLabs |
-| Bot speaks into meeting | ✅ | Output Media API (Recall's recommended path for conversational agents) |
-| Bot posts to in-meeting chat | ✅ | `POST /bot/{id}/send_chat_message`, supports pinning |
-| Participant join/leave/speaking events | ✅ | `participant_events` |
+| Bot joins meeting | ✅ Google Meet | ✅ `RecallClient.create_bot` |
+| Bot speaks into meeting | ✅ | ✅ `output_audio`, mp3 base64 |
+| Bot posts to in-meeting chat | ✅ `everyone`, 500 chars | ✅ `send_chat_message` |
+| Bot leaves | ✅ | ✅ `leave_call` |
+| Per-speaker separated audio, real-time | ✅ 16 speakers, 16 kHz mono PCM | ⬜ **not built** |
+| Real-time transcript with speaker attribution | ✅ | ⬜ **not built** |
 
-**Cost:** $0.50/hr of recording, prorated to the second. First 5 hours free. Built-in
-transcription +$0.15/hr. Budget for the whole hackathon including heavy iteration: under $20.
+**Cost:** $0.50/hr recording, prorated to the second, first 5 hours free. Built-in
+transcription +$0.15/hr. The whole hackathon including heavy iteration lands under $20.
 
-### Constraints that shaped this design
+### 2.1 The critical gap
 
-1. **Google Meet chat has a 500-character limit.** This is the single biggest product
-   constraint. It is why chat is an *alert channel only* — see §4.
-2. **Real-time separate-audio streams exclude screenshare audio.** If someone plays a
-   video or shares a tab with sound, Kindred is deaf to it live. It appears in the
-   post-call recording only. Accepted limitation.
-3. **Separate audio is compute-heavy — Recall recommends 4-core bots.** One config flag,
-   but streams drop silently if you miss it.
-4. **Output Media's exact streaming interface needs nailing down in implementation.**
-   Capability is confirmed; the chunk-level streaming contract is not yet verified.
-   v1 ships on the simpler `output_audio` endpoint (complete mp3 as base64) and upgrades
-   to streamed Output Media only if latency demands it. See §7 for the latency budget.
+**Kindred can join a meeting, speak into it, and type into its chat. It cannot hear it.**
+
+`RecallClient` implements bot lifecycle, audio output, and chat. It does not open the
+websocket that carries `audio_separate_raw.data` or `transcript.data`, so
+`handle_final_segment` is currently only ever called by the fixture harness.
+
+Everything downstream of the transcript — triage, retrieval, reasoning, the gate, wake
+detection, speech, chat — is built and works. They are exercised end to end today by
+replaying a fixture. Wiring the real transcript stream into the same function is the
+single remaining step to a live demo, and it is the top of the build order in §11.
+
+### 2.2 Constraints learned the hard way
+
+1. **Google Meet chat caps at 500 characters.** This shaped the whole product: chat is an
+   *alert* channel, the dashboard carries the argument. The cap is enforced in code
+   (`chat.sinks.fit_to_limit`), not trusted to the model — a prompt that usually produces
+   200 characters and occasionally produces 520 would silently drop that interjection, in
+   the meeting, on stage. Truncation is on a word boundary.
+2. **Recall requires `automatic_audio_output` at bot creation** or the on-demand audio
+   endpoint is disabled for that bot's entire life. Every bot Kindred dispatches gets a
+   silent clip in that slot to keep the path open.
+3. **Recall API keys are region-scoped.** A key from another region returns 401 on every
+   call, which reads exactly like a bad key. `RECALL_REGION` defaults to `us-west-2`.
+4. **Real-time separate-audio excludes screenshare audio.** Live, Kindred is deaf to a
+   shared video. It is in the post-call recording only. Don't demo a screenshared clip.
+5. **Separate audio is compute-heavy — Recall recommends 4-core bots.** One config flag,
+   and streams drop silently without it.
+6. **Bot status is polled, not webhooked.** Webhooks need a public HTTPS endpoint, and
+   requiring ngrok to be up before the bot can speak is exactly the kind of setup step
+   that eats a demo. Transcript ingestion will need that tunnel; audio output does not.
 
 ---
 
@@ -62,646 +89,396 @@ transcription +$0.15/hr. Budget for the whole hackathon including heavy iteratio
 ```mermaid
 flowchart TB
     GM["Google Meet"]
-    RC["Recall.ai bot<br/>(4-core)"]
-    HARNESS["Dev harness<br/>(fixture replay)"]
+    RC["Recall.ai bot"]
+    HARNESS["Fixture harness<br/>(no network)"]
 
-    subgraph BE["meet_AGI backend — FastAPI"]
-        ING["ingest/<br/>normalize events"]
-        IDENT["identity/<br/>participant → Person"]
-        BUS["event bus"]
-        WAKE["wake/<br/>wake-word detect"]
-        TRIAGE["triage/<br/>is this a checkable claim?"]
-        RAG["rag/<br/>pgvector retrieval"]
-        REASON["reason/<br/>Claude contradiction + answer"]
-        VOICE["voice/<br/>Inworld TTS"]
-        API["api/<br/>REST + WS"]
+    subgraph BE["backend — FastAPI"]
+        direction TB
+        ENGINE["pipeline/engine<br/>handle_final_segment"]
+        WAKE["pipeline/wake"]
+        TRIAGE["pipeline/triage"]
+        KB["knowledge/base<br/>keyword retrieval"]
+        REASON["pipeline/reason<br/>Claude"]
+        GATE["pipeline/gate<br/>rate limiter"]
+        SPEECH["speech/output<br/>utterance queue"]
+        CHAT["chat/router"]
+        BUS["bus (pub/sub)"]
+        API["api/ REST + WS"]
     end
 
-    DB[("Postgres 16<br/>+ pgvector")]
-    FE["Next.js frontend"]
+    FE["Dashboard"]
 
-    GM <--> RC
-    RC -->|"WS: audio_separate_raw,<br/>transcript, participants"| ING
-    HARNESS -.->|"same event schema"| ING
-    ING --> IDENT --> BUS
-    BUS --> WAKE
-    BUS --> TRIAGE
-    TRIAGE --> RAG --> REASON
-    WAKE --> REASON
-    REASON --> VOICE
-    VOICE -->|"mp3 b64"| RC
-    REASON -->|"chat alert ≤500ch"| RC
-    REASON --> DB
-    RAG <--> DB
-    BUS --> API
-    API <-->|"REST + WebSocket"| FE
+    GM <-->|"join, speak, chat"| RC
+    RC -.->|"transcript ⬜ NOT BUILT"| ENGINE
+    HARNESS -->|"same event schema"| ENGINE
+
+    ENGINE --> WAKE
+    ENGINE --> TRIAGE
+    TRIAGE --> KB --> REASON --> GATE
+    WAKE --> KB
+    GATE --> CHAT --> RC
+    REASON --> SPEECH --> RC
+    ENGINE --> BUS --> API <--> FE
 ```
 
-### Why a dev harness is a first-class component
+### Module map
+
+| Module | Job |
+|---|---|
+| `ingest/harness.py` | Fixture replay. Emits the real event stream with no network. |
+| `pipeline/engine.py` | The one entry point. Dispatches ambient vs speech, per-meeting lock. |
+| `pipeline/wake.py` | Wake detection with homophone variants and a positional guard. |
+| `pipeline/triage.py` | Is this a checkable claim? Heuristic first, then a cheap model. |
+| `pipeline/reason.py` | The two Claude calls: `check_claim`, `answer_question`. |
+| `pipeline/gate.py` | Rate limiter: confidence, cooldown, per-meeting cap. |
+| `pipeline/context.py` | Conversation memory for the current meeting. |
+| `knowledge/base.py` | Loads, chunks, and keyword-retrieves the `.txt` corpus. |
+| `speech/output.py` | Utterance queue — one clip at a time, in order, mute-aware. |
+| `chat/` | Where a `chat_alert` goes. Enforces the 500-char cap. |
+| `integrations/recall/` | Bot lifecycle, audio out, chat out. Polls status. |
+| `providers/voice/` | `inworld` \| `sample` \| `auto`. |
+| `providers/llm/` | Claude via the Anthropic SDK. |
+| `api/`, `bus.py`, `store.py`, `schemas/` | Contract, transport, state. |
+
+### Why the harness is a first-class component
 
 You cannot iterate on reasoning quality by hosting a live Google Meet every time. The
-`ingest/` layer accepts events from either Recall or a **fixture replay harness** that
-emits the identical normalized event schema from a scripted multi-speaker transcript.
+engine's entry point accepts finalized segments from either source.
 
-This means:
-- Your partner develops the entire frontend without ever touching Recall or a real meeting.
-- Reasoning-quality iteration costs zero dollars and zero coordination.
-- You get a rehearsed, deterministic demo path if conference wifi betrays you on stage.
+- The frontend is built end to end with no meeting, no key, no internet.
+- Reasoning iteration costs nothing and needs no coordination.
+- You get a deterministic, rehearsed demo path if conference wifi fails.
 
-Fixtures live in `fixtures/meetings/*.jsonl`. Ship at least one — `q3_revenue_review` —
-containing a planted contradiction and a planted "Kindred, ..." wake event.
+`fixtures/meetings/q3_revenue_review.jsonl` is a four-person quarterly review that plants
+a contradiction, two wake events, and an unmatched dial-in participant, so every UI state
+has data. When `ANTHROPIC_API_KEY` is set the harness runs the **real** pipeline over the
+fixture transcript; without it, it falls back to canned output with the same event shapes.
 
 ---
 
 ## 4. The ambient loop
 
-Runs on every finalized utterance.
+Runs on every finalized utterance that is not a wake.
 
-1. **Triage** — does this utterance contain a checkable factual assertion? High-volume,
-   small-model job. Runs on **Tenstorrent** when available (see §6). Cheap heuristic
-   prefilter first: skip utterances under ~8 words, skip pure back-channel ("yeah", "right").
-2. **Retrieve** — pgvector similarity over document chunks, filtered by tags, top-k 8.
-3. **Reason** — Claude evaluates: does the retrieved evidence contradict, complicate, or
-   materially qualify the claim? Returns a structured verdict with confidence and citations.
-4. **Gate** — emit only if `confidence >= min_confidence` AND `cooldown_seconds` elapsed
-   since the last interjection AND `max_per_meeting` not hit.
-5. **Emit** — two artifacts from one interjection:
-   - **`chat_alert`** → posted to Meet chat. Hard-capped at 500 chars, targeting ~200.
-     A flag, not an argument. No link (a URL in Meet chat is noise and unclickable-ugly).
-   - **`headline` + `body_md` + `citations`** → pushed to the frontend live view over
-     WebSocket. This is where the actual reasoning lives.
+1. **Remember** — the utterance joins the meeting's conversation context.
+2. **Triage** — is there a checkable factual assertion here? The heuristic runs first and
+   unconditionally because it is free: utterances under 8 words are out, pure
+   back-channel ("yeah", "sounds good") is out. Only survivors reach a model, and only
+   the cheap one. *The ordering is the whole optimization — you should not pay
+   frontier-model prices to decide whether "yeah, sounds good" needs fact-checking.*
+3. **Retrieve** — keyword prefilter over the corpus. Deliberately not semantic search:
+   it exists to keep the prompt small, not to be the final word on relevance. Claude reads
+   what survives and decides what matters. Recall beats precision here — a chunk wrongly
+   included costs a few hundred tokens; a chunk wrongly excluded is a fact Kindred cannot
+   see.
+4. **Reason** — Claude returns a structured verdict: conflict or not, confidence,
+   citations, a headline, a body, and a chat alert.
+5. **Gate** — drop it unless confidence clears `min_confidence`, the cooldown has
+   elapsed, and the per-meeting cap is not hit. **Answers to direct questions bypass the
+   gate** — if someone asks, Kindred replies. Only unprompted interjections are rationed.
+6. **Emit** — one interjection, two artifacts:
+   - `chat_alert` → the meeting. A flag, not an argument. Hard-capped at 500 chars.
+   - `headline` + `body_md` + `citations` → the dashboard over WebSocket.
 
-**The rate limiter is a feature, not an optimization.** A copilot that won't shut up is
-worse than no copilot. Defaults: `min_confidence 0.7`, `cooldown 90s`, `max 8 per meeting`.
+Reasoning is dispatched as a task per utterance behind a per-meeting lock, so it never
+blocks transcript ingestion and two interjections cannot interleave. Nothing in the
+pipeline raises into its caller: a meeting that keeps running with a degraded copilot
+beats one where a reasoning exception stops the transcript.
 
-**Autonomy levels** (`settings.autonomy`):
-- `silent` — nothing posted to the meeting; frontend only. Safest demo default.
-- `propose` — interjections appear in frontend as `proposed`, a human clicks approve, then it posts.
-- `auto_post` — posts to chat immediately. The real product; the impressive demo.
+**The rate limiter is a feature.** A copilot that will not shut up is worse than no
+copilot. Defaults: `min_confidence 0.7`, `cooldown 90s`, `max 8 per meeting`, all live-
+tunable from the settings UI — the right cooldown for a four-person review is not the
+right cooldown for a standup, and you find that out during the meeting.
 
-Example `chat_alert` (187 chars):
+**Autonomy levels** (`settings.autonomy`, default `auto_post`):
 
-```
-⚠️ Kindred: revenue claim conflicts with Q3 deck (p.14 shows new-product
-line down 12% MoM, not up). Likely gross vs. net. Full analysis in the
-Kindred dashboard.
-```
+- `silent` — dashboard only. Nothing reaches the meeting.
+- `propose` — interjections wait for a human to approve, who may edit the alert first.
+- `auto_post` — straight to chat. The real product, and the demo.
 
 ---
 
 ## 5. Speech mode
 
-State machine on `agent_state`: `idle → listening → thinking → speaking → idle`,
-plus `muted` as a hard override.
+State machine on `agent_state`: `idle → listening → thinking → speaking → idle`, with
+`muted` as a hard override.
 
-1. **Wake detection.** Match the wake word on *finalized* transcript segments only —
-   partials produce false triggers. Require the wake word at utterance start, or
-   immediately followed by question-shaped continuation. Debounce 3s.
+### Wake detection
 
-   False positives are the real risk here ("kindred spirits", or people *discussing*
-   Kindred during the demo). Mitigations:
-   - A confirmation state: Kindred plays a short ack chime, doesn't speak until it has a question.
-   - A **manual wake button** in the frontend. Non-negotiable demo safety net.
-   - A **mute kill switch** in the frontend. Also non-negotiable.
+Matched against **finalized transcript only**. Partials revise as they arrive, and a
+partial that briefly reads `"hey a g..."` fires a wake the final then contradicts. This
+is the single likeliest thing to embarrass you on stage.
 
-2. **Capture question.** Accumulate finalized segments from the waking speaker until
-   1.5s of silence or 20s hard cap.
+Two problems a naive substring check does not solve:
 
-3. **Clarify (at most once).** If the question is ambiguous or underspecified, generate
-   exactly one clarifying question, speak it, and return to listening. Cap at one round —
-   a bot that interrogates you is a bad demo.
+**STT mangles "AGI".** It is three letters, not a word, so real transcripts come back as
+`hey a g i`, `hey agi`, `hey aji`, `hey adji`. The variant set is generated from the
+configured wake word plus a homophone list, so changing the wake word in settings does
+not silently break matching.
 
-4. **Answer.** RAG retrieve → Claude generates → Character.AI persona layer shapes the
-   phrasing (if enabled) → Inworld TTS → mp3 → Recall.
+**People say the wake word while talking about it.** "We should call it Hey AGI" must not
+wake. The guard is positional: the phrase must start the utterance or follow a clause
+boundary — which is where someone addressing the agent mid-sentence ("hold on, hey AGI,
+what does the deck say") actually puts it.
 
-5. **Record.** The spoken answer is persisted as an `Interjection` with `kind: "answer"`
-   and `spoken: true`, so the frontend timeline shows everything Kindred said and why.
+Belt and braces on top: a **manual wake button** and a **mute kill switch** in the
+dashboard, plus `POST /ask` to type a question directly. All three are stage insurance,
+and all three should be visible controls, not debug tools.
+
+### Answering
+
+Retrieve → Claude → Inworld TTS → mp3 → Recall. The answer is persisted as an
+`Interjection` with `kind: "answer"` and an `Utterance` recording the audio event, so the
+dashboard timeline shows everything Kindred said and why.
+
+⬜ **Clarifying questions are not built.** The design holds — at most one round, because
+a bot that interrogates you is a bad demo — but it is not implemented.
 
 ---
 
-## 6. Sponsor integration
+## 6. Sponsors
 
-All three sit behind provider interfaces so any one can be swapped or dropped without
-touching the pipeline. **Inworld is load-bearing** (voice is the entire premise of
-"actually speaks"). The other two are real but droppable under time pressure.
+All three sit behind provider seams. Only one is required to qualify.
 
-### Inworld — voice. Load-bearing.
-`VoiceProvider.synthesize(text, voice_id) -> mp3 bytes`
+### Inworld — voice. ✅ Built and load-bearing.
+`providers/voice/inworld.py`. Kindred's actual speaking voice. `VOICE_PROVIDER=auto`
+uses Inworld when `INWORLD_API_KEY` is set and falls back to pre-baked sample clips
+otherwise, so the audio path works with no key at all.
 
-Kindred's speaking voice. This is the sponsor tech doing the thing the demo is named
-after. Fallback implementation: ElevenLabs, or OS TTS for offline dev.
+### Tenstorrent — ambient triage. ⬜ Seam built, provider not.
+`pipeline/triage.py` is the highest-QPS decision in the system: it runs on every
+utterance of every meeting, forever, and it is small-model classification. That is
+exactly the workload that justifies dedicated inference hardware, and the cost argument
+is real. `settings.triage.provider` accepts `tenstorrent`; today the work is done by the
+heuristic plus Claude Haiku. **This is the cheapest sponsor to add and the first to cut.**
 
-### Character.AI — persona. Genuinely useful.
-`PersonaProvider.shape(draft_text, context) -> str`
+### Character.AI — persona. ⬜ Settings field only.
+`settings.persona` exists in the contract; there is no `providers/persona/`. The intent
+stands: Claude reasons, Character.AI shapes tone. Keeping them separate matters — you do
+not want persona bleeding into analytical accuracy.
 
-Claude does the reasoning; Character.AI gives Kindred a consistent character — tone,
-verbal tics, how it hedges, how it interrupts politely. The separation matters: you do
-not want persona bleeding into analytical accuracy. Reason first, then shape.
-Fallback: a Claude system prompt.
-
-### Tenstorrent — ambient triage. The honest fit.
-`TriageProvider.is_checkable_claim(utterance, context) -> (bool, float)`
-
-This is the highest-QPS model call in the system — it runs on *every* utterance in
-*every* meeting, forever. It's small, it's classification, and it never stops. That is
-exactly the workload that justifies dedicated inference hardware, and there's a real
-cost argument: you should not pay frontier-model prices to decide whether "yeah, sounds
-good" is worth fact-checking.
-
-Fallbacks: `claude` (Haiku) or `heuristic` (keyword + POS rules). **This is the first
-thing to cut if you run short on time** — set `triage.provider: "heuristic"` and the
-demo still works end to end.
-
-**Open question for you:** do you have Tenstorrent cloud credentials yet? Getting a model
-serving on their hardware is a half-day minimum and it's the only sponsor item on the
-critical path for setup rather than code.
+### Claude — the reasoning itself. ✅ Built.
+`claude-opus-5` for interjections and answers, `claude-haiku-4-5` for triage.
 
 ---
 
 ## 7. Latency budget for speech mode
 
-This is what separates "impressive" from "awkward." Measured from question-end to
-first audio in the meeting:
+What separates "impressive" from "awkward", measured from question-end to first audio:
 
 | Stage | Expected |
 |---|---|
-| Recall transcript finalize → backend | 300–800 ms |
-| RAG retrieve (pgvector, top-k 8) | ~100 ms |
-| Claude first sentence (streamed) | ~600 ms |
+| Transcript finalize → backend | 300–800 ms |
+| Keyword retrieval | ~10 ms |
+| Claude first sentence | ~600 ms |
 | Inworld TTS first chunk | 200–500 ms |
-| Recall Output Media → audible in meeting | 500–1000 ms |
+| Recall `output_audio` → audible | 500–1000 ms |
 | **Total to first audio** | **~2–3 s** |
 
-**The design requirement that falls out of this: stream at sentence granularity.**
-Generate the answer sentence-by-sentence, TTS each sentence as it completes, and push
-audio while later sentences are still being written. If you wait for the full answer
-before synthesizing, first-audio lands at 5–7s and it feels broken.
+⬜ **Sentence-level streaming is not built.** Today an answer is synthesized as one clip
+and played when complete, which pushes first-audio to roughly 5–7s on a long answer.
+Generating sentence-by-sentence and playing each as it completes is the fix. Treat it as
+required before demo, not a nice-to-have.
 
-v1 may ship non-streaming (complete mp3 via `output_audio`) to get end-to-end working.
-Treat streaming as a required upgrade before demo, not a nice-to-have.
+`speech_tail_padding_ms` exists because Recall buffers and mixes audio: playback finishes
+slightly after the POST returns, and without padding back-to-back clips clip each other's
+tails.
 
 ---
 
 ## 8. API contract
 
-**This section is the coordination boundary.** Your partner builds against this without
-reading backend code.
+**This is the coordination boundary.** The frontend is built against this without reading
+backend code.
 
-**Source of truth:** Pydantic v2 models in `backend/app/schemas/`. FastAPI generates
-OpenAPI; `scripts/gen-types.sh` runs `openapi-typescript` into
-`frontend/src/lib/api/generated.ts`. That file is generated — never hand-edited. Run the
-script after any schema change and commit the result, so the frontend always has types
-even when the backend isn't running.
+**Source of truth:** Pydantic models in `backend/app/schemas/`. FastAPI derives OpenAPI;
+`./scripts/gen-types.sh` derives `frontend/src/lib/api/generated.ts`. Both `openapi.json`
+and the generated TypeScript are committed, so the frontend always has current types even
+when the backend is not running.
 
-**Conventions:**
-- Base path `/api`. JSON everywhere except file upload (multipart).
-- IDs are prefixed ULIDs: `prs_`, `doc_`, `mtg_`, `seg_`, `itj_`, `chk_`.
-- Timestamps are RFC 3339 UTC with milliseconds.
-- Errors: `{"error": {"code": "not_found", "message": "...", "detail": {...}}}`
-  with conventional HTTP status codes.
-- Lists are `{"items": [...], "next_cursor": "..." | null}`.
-- **All mutations go over REST. The WebSocket is server→client only** (except `ping`).
-  One write path, no dual-write bugs.
+**Conventions**
+- Base path `/api`. JSON except multipart upload.
+- IDs are prefixed ULIDs: `prs_`, `doc_`, `chk_`, `mtg_`, `seg_`, `itj_`, `utt_`.
+- Timestamps are RFC 3339 UTC with exactly milliseconds: `2026-08-01T18:22:04.118Z`.
+- Errors are always `{"error": {"code", "message", "detail"}}`.
+- Lists are `{"items": [...], "next_cursor": null}`. Cursors are opaque.
+- **All mutations are REST. The WebSocket is server-to-client only.** One write path.
 
-### 8.1 Core objects
+### 8.1 Endpoints
 
-```jsonc
-// Person — someone who attends meetings
-{
-  "id": "prs_01J8XK2M3N4P5Q6R7S8T9V",
-  "display_name": "Sarah Chen",
-  "aliases": ["Sarah", "S. Chen"],
-  "role": "VP Finance",
-  "org": "Acme Corp",
-  "email": "sarah@acme.com",
-  "bio": "Owns the quarterly revenue model. Presents the board deck.",
-  "voice_sample_url": null,
-  "created_at": "2026-08-01T17:04:11.221Z",
-  "updated_at": "2026-08-01T17:04:11.221Z"
-}
+The authoritative list is `openapi.json` / http://localhost:8000/docs. Current surface:
+
 ```
+GET    /api/health
 
-```jsonc
-// Document — uploaded or integration-sourced context
-{
-  "id": "doc_01J8XK4A...",
-  "filename": "Q3-board-deck.pdf",
-  "mime_type": "application/pdf",
-  "size_bytes": 284119,
-  "source": "upload",              // upload | slack | gmail | gdrive | notion
-  "status": "ready",               // pending | parsing | embedding | ready | failed
-  "error": null,
-  "chunk_count": 84,
-  "tags": ["finance", "q3"],
-  "created_at": "2026-08-01T17:09:02.010Z"
-}
-```
+GET    /api/people                              POST   /api/people
+GET    /api/people/{id}                         PATCH  /api/people/{id}
+DELETE /api/people/{id}                         POST   /api/people/{id}/voice-sample
 
-```jsonc
-// Integration — stubbed for the hackathon
-{
-  "provider": "slack",             // slack | gmail | gdrive | notion | salesforce
-  "display_name": "Slack",
-  "status": "connected",           // available | connected | error
-  "connected_at": "2026-08-01T17:12:44.000Z",
-  "account_label": "acme.slack.com",
-  "capabilities": ["documents", "messages"],
-  "is_stub": true                  // frontend shows a "Demo" badge when true
-}
-```
-
-`is_stub` exists so the UI can be honest without the frontend hardcoding which providers
-are fake. When a connection becomes real, the flag flips and the badge disappears.
-
-```jsonc
-// Settings — singleton
-{
-  "wake_word": "Kindred",
-  "wake_word_enabled": true,
-  "autonomy": "auto_post",         // silent | propose | auto_post
-  "interjection": {
-    "min_confidence": 0.7,
-    "cooldown_seconds": 90,
-    "max_per_meeting": 8
-  },
-  "voice": {
-    "provider": "inworld",         // inworld | elevenlabs | system
-    "voice_id": "kindred_v1",
-    "speaking_rate": 1.0
-  },
-  "persona": {
-    "provider": "characterai",     // characterai | claude
-    "character_id": null,
-    "tone": "concise_analyst"
-  },
-  "triage": {
-    "provider": "tenstorrent"      // tenstorrent | claude | heuristic
-  }
-}
-```
-
-```jsonc
-// Meeting
-{
-  "id": "mtg_01J8XM...",
-  "title": "Q3 Revenue Review",
-  "meeting_url": "https://meet.google.com/abc-defg-hij",
-  "platform": "google_meet",
-  "state": "in_call",              // scheduled | joining | in_call | ended | failed
-  "agent_state": "idle",           // idle | listening | thinking | speaking | muted
-  "source": "recall",              // recall | harness
-  "bot_id": "8f2a1c94-...",        // Recall bot id; null when source=harness
-  "roster": [
-    {
-      "participant_id": "p_2",     // platform-scoped, from Recall
-      "person_id": "prs_01J8XK2M...",  // null when unmatched
-      "display_name": "Sarah Chen",
-      "is_host": false,
-      "matched": true,
-      "is_speaking": false
-    }
-  ],
-  "started_at": "2026-08-01T18:00:03.100Z",
-  "ended_at": null,
-  "stats": {
-    "utterance_count": 412,
-    "interjection_count": 3,
-    "duration_seconds": 1840
-  },
-  "error": null
-}
-```
-
-```jsonc
-// TranscriptSegment
-{
-  "id": "seg_01J8XN...",
-  "meeting_id": "mtg_01J8XM...",
-  "participant_id": "p_2",
-  "person_id": "prs_01J8XK2M...",  // nullable
-  "speaker_name": "Sarah Chen",
-  "text": "new product revenue is up about eight percent this quarter",
-  "is_final": true,
-  "start_ms": 154200,
-  "end_ms": 158900,
-  "confidence": 0.94
-}
-```
-
-```jsonc
-// Interjection — the central object. Everything Kindred says or wants to say.
-{
-  "id": "itj_01J8XP...",
-  "meeting_id": "mtg_01J8XM...",
-  "kind": "contradiction",         // contradiction | context | correction | answer | clarification
-  "status": "posted",              // proposed | approved | posted | dismissed | failed
-  "trigger": {
-    "segment_ids": ["seg_01J8XN..."],
-    "person_id": "prs_01J8XK2M...",
-    "quote": "new product revenue is up about eight percent this quarter"
-  },
-  "chat_alert": "⚠️ Kindred: revenue claim conflicts with Q3 deck (p.14 shows new-product line down 12% MoM, not up). Likely gross vs. net. Full analysis in the Kindred dashboard.",
-  "headline": "Sarah's revenue claim conflicts with the Q3 board deck",
-  "body_md": "Sarah stated new-product revenue is **up ~8%** this quarter.\n\nThe Q3 board deck (p.14) shows the new-product line at **-12% MoM**...",
-  "confidence": 0.82,
-  "citations": [
-    {
-      "document_id": "doc_01J8XK4A...",
-      "filename": "Q3-board-deck.pdf",
-      "chunk_id": "chk_01J8XK5B...",
-      "page": 14,
-      "quote": "New Product Line: $1.42M (-12.1% MoM)",
-      "relevance": 0.91
-    }
-  ],
-  "spoken": false,
-  "created_at": "2026-08-01T18:22:04.118Z",
-  "posted_at": "2026-08-01T18:22:05.402Z"
-}
-```
-
-`chat_alert` is server-enforced ≤500 chars. The frontend can render it verbatim as a
-preview of what the meeting saw.
-
-### 8.2 REST endpoints
-
-**People**
-```
-GET    /api/people                     → {items, next_cursor}
-POST   /api/people                     ← {display_name, role?, org?, email?, bio?, aliases?}
-GET    /api/people/{id}
-PATCH  /api/people/{id}
-DELETE /api/people/{id}
-POST   /api/people/{id}/voice-sample   ← multipart (audio) → Person
-```
-
-**Documents**
-```
-GET    /api/documents                  → {items, next_cursor}   ?status= ?tag= ?source=
-POST   /api/documents                  ← multipart file[] + tags[] → {items: Document[]}
-GET    /api/documents/{id}
+GET    /api/documents                           POST   /api/documents          (multipart)
+GET    /api/documents/{id}                      PATCH  /api/documents/{id}
 DELETE /api/documents/{id}
-```
-Upload returns immediately with `status: "pending"`. Progress arrives via
-`GET /api/documents` polling, or the global WS if the frontend is connected.
 
-**Integrations**
-```
-GET    /api/integrations                        → {items: Integration[]}
-POST   /api/integrations/{provider}/connect     ← {} → Integration
-DELETE /api/integrations/{provider}             → Integration
-```
-For the hackathon, `connect` flips `status` to `connected` after a ~1.2s simulated delay
-and sets a plausible `account_label`. No OAuth. The endpoint shape is the real one, so
-wiring a genuine integration later touches only the backend.
+GET    /api/integrations                        POST   /api/integrations/{provider}/connect
+DELETE /api/integrations/{provider}
 
-**Settings**
-```
-GET    /api/settings                   → Settings
-PATCH  /api/settings                   ← partial Settings → Settings
-```
+GET    /api/settings                            PATCH  /api/settings
 
-**Meetings**
-```
-GET    /api/meetings                   → {items, next_cursor}   ?state=
-POST   /api/meetings                   ← {meeting_url, title?, expected_person_ids?[]}  → Meeting
-GET    /api/meetings/{id}              → Meeting
-POST   /api/meetings/{id}/leave        → Meeting
-GET    /api/meetings/{id}/transcript   → {items: TranscriptSegment[], next_cursor}  ?cursor= ?limit=
-GET    /api/meetings/{id}/interjections → {items: Interjection[], next_cursor}
+GET    /api/meetings                            POST   /api/meetings
+GET    /api/meetings/{id}                       POST   /api/meetings/{id}/leave
+GET    /api/meetings/{id}/transcript            GET    /api/meetings/{id}/interjections
+GET    /api/meetings/{id}/utterances
+
+POST   /api/meetings/{id}/wake                  POST   /api/meetings/{id}/mute
+POST   /api/meetings/{id}/ask                   POST   /api/meetings/{id}/interrupt
+POST   /api/meetings/{id}/speak                 POST   /api/meetings/{id}/speak/random
+GET    /api/speech/clips
+
+POST   /api/interjections/{id}/approve          POST   /api/interjections/{id}/dismiss
+POST   /api/interjections/{id}/speak
+
+GET    /api/dev/fixtures                        POST   /api/dev/reset
+POST   /api/dev/harness/start                   POST   /api/dev/harness/stop
+
+WS     /api/meetings/{id}/live                  WS     /api/live
+GET    /api/_schema/live-event                  GET    /api/_schema/client-message
 ```
 
-**Agent control** — the demo safety net
-```
-POST   /api/meetings/{id}/wake         ← {}                    → Meeting   // manual wake
-POST   /api/meetings/{id}/mute         ← {muted: bool}         → Meeting   // kill switch
-POST   /api/meetings/{id}/ask          ← {question, speak?: bool}  → Interjection
-```
-`/ask` lets you type a question from the dashboard and optionally have Kindred speak the
-answer into the meeting. This is the single most valuable demo-recovery tool in the API —
-if wake-word detection misfires on stage, you type the question and it still speaks.
+The two `_schema` endpoints are never called. They exist so the WebSocket event union
+lands in OpenAPI — see §8.3.
 
-**Interjection review** — used when `autonomy: "propose"`
-```
-POST   /api/interjections/{id}/approve  ← {edited_chat_alert?: string} → Interjection
-POST   /api/interjections/{id}/dismiss  ← {reason?: string}            → Interjection
-POST   /api/interjections/{id}/speak    ← {}                           → Interjection
-```
+### 8.2 Central objects
 
-**Dev harness** — how the frontend is built without a live meeting
-```
-GET    /api/dev/fixtures               → {items: [{id, title, duration_seconds, description}]}
-POST   /api/dev/harness/start          ← {fixture_id, speed?: 1.0}  → Meeting
-POST   /api/dev/harness/stop           ← {meeting_id}               → Meeting
-```
-Creates a `Meeting` with `source: "harness"` that emits the full event stream —
-transcript, participants, interjections, wake events — indistinguishable from a real
-meeting to any WS consumer. `speed: 4.0` fast-forwards for quick iteration.
+**`Interjection`** — a conclusion. `kind` ∈ `contradiction | context | correction |
+answer | clarification`; `status` ∈ `proposed | approved | posted | dismissed | failed`.
+Carries `chat_alert` (≤500 chars, what the meeting saw), `headline`, `body_md`,
+`confidence`, `citations[]`, and `trigger` (the quote that caused it).
+
+**`Utterance`** — an audio event. Deliberately separate from `Interjection`: an
+interjection is a conclusion, an utterance is the sound that carried it. `status` ∈
+`queued | speaking | played | dropped | failed`. `placeholder: true` means the audio is a
+stand-in that does not say `requested_text` — the UI should label it rather than
+presenting it as real speech.
+
+**`Meeting`** — `state` ∈ `scheduled | joining | in_call | ended | failed`;
+`agent_state` ∈ `idle | listening | thinking | speaking | muted`; `source` ∈
+`recall | harness`. `roster[]` entries carry `matched` and `person_id`.
+
+**`TranscriptSegment`** — partials and their final share an `id`, so a final replaces the
+partial it supersedes.
+
+**`Settings`** — `wake_word` (default `"Hey AGI"`), `wake_aliases` (default `["Kindred"]`),
+`wake_word_enabled`, `autonomy`, `interjection` policy, `voice`, `persona`, `triage`.
 
 ### 8.3 WebSocket
 
-```
-WS /api/meetings/{id}/live      — per-meeting event stream
-WS /api/live                    — global stream (document status, meeting lifecycle)
-```
-
-Every frame shares one envelope:
+One envelope for every frame:
 
 ```jsonc
-{
-  "type": "transcript.final",
-  "seq": 1428,                   // monotonic per connection; detect gaps
-  "meeting_id": "mtg_01J8XM...",
-  "ts": "2026-08-01T18:22:04.118Z",
-  "data": { /* shape determined by type */ }
-}
+{ "type": "transcript.final", "seq": 1428, "meeting_id": "mtg_…",
+  "ts": "2026-08-01T18:22:04.118Z", "data": { /* per type */ } }
 ```
 
-On connect the server sends exactly one `snapshot` frame carrying full current state, so
-the frontend never needs a REST call to initialize the live view. Reconnect with
-`?since_seq=N` to replay missed frames (buffer: last 500).
+Exactly one `snapshot` on connect carries full state, so no REST round-trip is needed to
+initialize. Reconnect with `?since_seq=N` to replay from a 500-frame buffer; if that point
+is evicted the server sends a fresh `snapshot` and the client must reset. `seq` is
+monotonic — a gap means dropped frames, so reconnect rather than reconcile.
 
 | `type` | `data` |
 |---|---|
-| `snapshot` | `{meeting: Meeting, recent_segments: TranscriptSegment[], interjections: Interjection[]}` |
+| `snapshot` | `{meeting, recent_segments[], interjections[]}` |
 | `meeting.state_changed` | `{state, agent_state, error?}` |
-| `participant.joined` | `{participant: RosterEntry}` |
-| `participant.left` | `{participant_id}` |
-| `participant.speaking_changed` | `{participant_id, is_speaking}` |
-| `transcript.partial` | `TranscriptSegment` (`is_final: false`) |
-| `transcript.final` | `TranscriptSegment` (`is_final: true`) |
-| `interjection.proposed` | `Interjection` |
-| `interjection.updated` | `Interjection` (status transitions) |
+| `participant.joined` / `.left` / `.speaking_changed` | roster deltas |
+| `transcript.partial` / `.final` | `TranscriptSegment` |
+| `interjection.proposed` / `.updated` | `Interjection` |
 | `agent.state_changed` | `{agent_state, detail?}` |
 | `speech.wake_detected` | `{participant_id, person_id?, segment_id, matched_text}` |
-| `speech.question_captured` | `{question, segment_ids}` |
-| `speech.clarification_asked` | `{question}` |
-| `speech.answered` | `{interjection_id}` |
-| `document.status_changed` | `Document` (global stream only) |
+| `speech.question_captured` / `.clarification_asked` / `.answered` | speech-mode progress |
+| `document.status_changed` | `Document` (global stream) |
 | `error` | `{code, message}` |
 
-`transcript.partial` frames are high-frequency. The frontend should render them into a
-single mutable "live line" per speaker and only commit to the transcript log on
-`transcript.final`.
+**OpenAPI cannot describe sockets**, so `LiveEvent` would never reach the generated client
+and would have to be hand-written. The `_schema/live-event` anchor endpoint solves this:
+its response model *is* the union, and the frontend extracts the discriminated union from
+that response type. **Adding an event type in Python therefore needs no frontend edit.**
 
-### 8.4 Contract discipline
+### 8.4 Change discipline
 
-- Backend owns `backend/app/schemas/`. Frontend never defines an API type by hand.
-- Any schema change: run `scripts/gen-types.sh`, commit the generated file, note it in
-  the PR description.
-- **Additive changes are free. Removals and renames need a heads-up in Slack.** With two
-  people moving fast in parallel, this is the rule that prevents a lost afternoon.
-- Enum values are closed sets. Frontend switch statements should have a `default` branch
-  rather than assuming exhaustiveness — the backend will add variants.
+- Adding a field, enum variant, or event type: **free, unannounced**.
+- Renaming or removing anything: **tell the other developer first.**
+- Run `./scripts/gen-types.sh` after any schema change and commit the output.
+- `switch` on `event.type` **with a `default` branch** — new types will arrive.
 
 ---
 
-## 9. Frontend spec
-
-Two surfaces.
+## 9. Frontend
 
 ### Config (`/settings`)
-- **People** — CRUD list. Name, role, org, email, bio, aliases, optional voice sample.
-  This is how Kindred knows who's talking and why they'd say it.
-- **Documents** — drag-drop upload, per-file status chip (pending → parsing → embedding →
-  ready), tag editor, delete.
-- **Integrations** — card grid: Slack, Gmail, Google Drive, Notion, Salesforce. Connect
-  button, connected state, "Demo" badge driven by `is_stub`.
-- **Agent** — wake word, autonomy selector (with plain-language descriptions of each
-  level, because `auto_post` vs `propose` is a trust decision), confidence threshold,
-  cooldown, voice picker, persona tone.
+People (name, role, org, bio, aliases — fed to the reasoning model as speaker context),
+documents (drag-drop, status chip, tags), integrations (cards; "Demo" badge driven by
+`is_stub`, never hardcoded), and agent settings (wake word, autonomy with plain-language
+descriptions, confidence, cooldown, voice, persona tone).
 
 ### Live meeting view (`/meetings/[id]`)
-The demo screen. Everything here is WS-driven.
+The demo screen. Entirely WebSocket-driven.
 
-- **Header** — meeting title, elapsed time, agent state pill (`idle`/`listening`/
-  `thinking`/`speaking`/`muted`) with distinct colors. This pill is the whole demo:
-  the audience watches it flip to `listening` the instant someone says "Kindred."
-- **Roster rail** — participants with live speaking indicator, matched Person name and
-  role, unmatched participants visually flagged.
-- **Transcript** — auto-scrolling, speaker-colored, partials rendered as a dim live line
-  that solidifies on final.
-- **Interjection feed** — the payoff. Each card: headline, confidence, the triggering
-  quote, full `body_md`, expandable citations with document name and page. When
-  `autonomy: "propose"`, approve/dismiss buttons. Shows the exact `chat_alert` that went
-  into the meeting.
-- **Controls** — mute kill switch, manual wake button, and an ask box (types straight to
-  `POST /ask`). All three are stage-insurance.
+- **Agent state pill** — `idle`/`listening`/`thinking`/`speaking`/`muted`, distinct
+  colors. This pill *is* the demo: the audience watches it flip to `listening` the instant
+  someone says "Hey AGI".
+- **Roster** — live speaking indicators, matched role, unmatched participants flagged.
+- **Transcript** — partials as a dim live line per speaker that solidifies on final.
+- **Interjection feed** — the payoff. Headline, confidence, triggering quote, `body_md`,
+  expandable citations, the verbatim `chat_alert`, and approve/dismiss under `propose`.
+- **Controls** — mute, manual wake, ask box. Stage insurance; make them visible.
 
-Design note: the interjection card is the thing people screenshot. It carries the
-argument that chat's 500 characters can't. Give it the most design attention.
+The interjection card is what people screenshot. It carries the argument chat's 500
+characters cannot. Give it the most design attention.
 
 ---
 
 ## 10. Stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Backend | Python 3.11, FastAPI, Pydantic v2, uvicorn | Free OpenAPI generation; the whole ML ecosystem |
-| DB | Postgres 16 + pgvector | Real RAG over uploaded docs; one container |
-| Frontend | Next.js 15 (App Router), TypeScript, Tailwind | Partner's independent surface |
-| Contract | OpenAPI → `openapi-typescript` | Generated types, never hand-synced |
-| Reasoning | Claude (Opus for interjections, Haiku for triage fallback) | Quality where it matters, cheap where it doesn't |
-| Voice | Inworld | Sponsor, load-bearing |
-| Persona | Character.AI | Sponsor, adapter |
-| Triage | Tenstorrent | Sponsor, adapter |
-| Meeting I/O | Recall.ai | Verified capability matrix, §2 |
-| Local dev | docker-compose (postgres) + `make dev` | Partner runs one command |
+| Layer | Choice |
+|---|---|
+| Backend | Python 3.11+, FastAPI, Pydantic v2, uvicorn |
+| State | **In-memory, seeded.** No database. Restart clears everything. |
+| Retrieval | Keyword prefilter over `.txt` in `knowledge/`. ⬜ Not pgvector. |
+| Frontend | Contract layer shipped; app framework is the frontend owner's call |
+| Contract | OpenAPI → `openapi-typescript` |
+| Reasoning | `claude-opus-5`, `claude-haiku-4-5` for triage |
+| Voice | Inworld, with pre-baked sample clips as fallback |
+| Meeting I/O | Recall.ai |
 
-### Repo layout
-
-```
-meet_AGI/
-├── DESIGN.md
-├── README.md
-├── docker-compose.yml
-├── Makefile
-├── .env.example
-├── backend/
-│   ├── pyproject.toml
-│   └── app/
-│       ├── main.py
-│       ├── config.py
-│       ├── bus.py                 # in-process pub/sub
-│       ├── api/                   # routers, one per resource
-│       ├── schemas/               # Pydantic — CONTRACT SOURCE OF TRUTH
-│       ├── models/                # SQLAlchemy
-│       ├── ingest/
-│       │   ├── recall.py          # bot lifecycle, WS consumer
-│       │   ├── harness.py         # fixture replay
-│       │   └── normalize.py       # → internal event schema
-│       ├── pipeline/
-│       │   ├── ambient.py         # triage → retrieve → reason → gate
-│       │   ├── speech.py          # wake → capture → clarify → answer
-│       │   └── identity.py        # participant → Person matching
-│       ├── rag/                   # chunk, embed, retrieve
-│       └── providers/
-│           ├── voice/             # inworld, elevenlabs, system
-│           ├── persona/           # characterai, claude
-│           ├── triage/            # tenstorrent, claude, heuristic
-│           └── llm/               # claude client
-├── frontend/
-│   ├── package.json
-│   └── src/
-│       ├── app/
-│       ├── components/
-│       └── lib/api/
-│           ├── generated.ts       # GENERATED — do not edit
-│           └── ws.ts              # typed WS client
-├── fixtures/meetings/
-│   └── q3_revenue_review.jsonl
-└── scripts/
-    ├── gen-types.sh
-    └── seed.py
-```
-
-### Environment
-
-```bash
-RECALL_API_KEY=
-RECALL_REGION=us-west-2
-ANTHROPIC_API_KEY=
-INWORLD_API_KEY=
-CHARACTERAI_API_KEY=          # optional
-TENSTORRENT_ENDPOINT=         # optional
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/meet_agi
-PUBLIC_WS_URL=               # tunnel URL Recall posts events to (ngrok in dev)
-```
-
-**Note:** Recall needs a publicly reachable `wss://` endpoint to deliver real-time
-events. In dev that means ngrok or Cloudflare Tunnel. This is a real setup step and a
-common source of "why is nothing arriving" — the harness exists partly so it isn't
-blocking.
+Postgres + pgvector remains the right answer at scale and is what §11 milestone 3 was.
+For a hackathon corpus of a few documents, keyword retrieval into a Claude context window
+is faster to build, has no infrastructure, and is good enough — Claude does the relevance
+judgement anyway.
 
 ---
 
 ## 11. Build order
 
-Sequenced so the frontend is unblocked at hour one.
+| # | Milestone | State |
+|---|---|---|
+| 0 | Schemas, OpenAPI, generated TS, fixture harness | ✅ done |
+| 1 | Config CRUD | ✅ done, in-memory |
+| 2 | Harness emits the full live event stream | ✅ done |
+| 3 | Document corpus + retrieval | ✅ keyword; ⬜ pgvector deferred |
+| 4 | Ambient loop: triage → reason → gate → interjection | ✅ done |
+| 5a | Recall bot join, audio out, chat out | ✅ done |
+| **5b** | **Recall real-time transcript ingestion** | ⬜ **not built — top priority** |
+| 6 | Chat alert posting | ✅ done |
+| 7 | Speech mode: wake → answer → Inworld → meeting | ✅ done |
+| 8 | Sentence-level streaming for speech | ⬜ not built |
+| 9 | Clarifying questions | ⬜ not built |
+| — | Config UI, live meeting view | 🟡 frontend owner |
 
-| # | Milestone | Owner | Unblocks |
-|---|---|---|---|
-| 0 | Schemas + OpenAPI + generated TS + harness fixture. **No real integrations.** | Backend | **Everything on the frontend** |
-| 1 | Config CRUD (people, documents, integrations stub, settings) | Backend | Config UI |
-| 2 | Harness replay emitting the full WS event stream | Backend | Live view UI, built against fake data |
-| 3 | Document ingestion → chunk → embed → pgvector retrieval | Backend | Real citations |
-| 4 | Ambient loop: triage → reason → Interjection (autonomy `silent`) | Backend | Interjection feed |
-| 5 | Recall bot join + per-speaker transcript, replacing harness | Backend | Real meetings |
-| 6 | Chat alert posting (autonomy `auto_post`) | Backend | In-meeting proof |
-| 7 | Speech mode: wake → capture → Inworld TTS → Recall output | Backend | **The money shot** |
-| 8 | Sentence-level streaming for speech mode | Backend | Latency that feels alive |
-| 9 | Clarifying questions | Backend | Nice-to-have |
-| — | Config UI | Frontend | after #0 |
-| — | Live meeting view | Frontend | after #0, refined at #2 |
-| — | Interjection card polish | Frontend | after #2 |
+**5b is the critical path.** Everything downstream of it is built and tested against the
+harness. Until it lands, Kindred is deaf in a real meeting and the demo has to be driven
+by `POST /ask` and the manual wake button.
 
-**Milestone 0 is the critical path for two people.** Until schemas and generated types
-land, your partner is blocked. Do it first, commit the generated TypeScript, and push
-before anything else.
-
-**Cut list under time pressure, in order:** #9 clarifying questions → Tenstorrent triage
-(fall back to `heuristic`) → Character.AI persona (fall back to Claude prompt) → #8
-streaming. Do not cut #7; it's the entire pitch.
+**Cut list, in order:** clarifying questions → Character.AI persona → Tenstorrent triage →
+sentence streaming. Do not cut 5b or 7.
 
 ---
 
@@ -709,26 +486,27 @@ streaming. Do not cut #7; it's the entire pitch.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Wake word false-positives during the demo | **High** — someone on stage will say "Kindred" while explaining Kindred | Manual wake button, mute switch, ack chime before speaking, final-transcript-only matching |
-| Recall needs a public wss:// endpoint | Medium | ngrok set up early; harness makes it non-blocking |
-| Speech-mode latency feels dead | Medium | Sentence-level streaming (#8); measure first-audio explicitly |
-| Kindred interjects too much | Medium | Cooldown + confidence + max-per-meeting, all tunable live from the UI |
-| Tenstorrent setup eats a day | Medium | It's a swappable adapter behind `TriageProvider`; `heuristic` fallback ships day one |
-| 500-char chat limit makes alerts feel thin | Low-Medium | Accepted by design: chat alerts, frontend argues |
-| Screenshare audio invisible in real time | Low | Documented limitation; don't demo a screenshared video |
-| Conference wifi | Medium | Harness fixture gives a fully offline demo path |
+| **5b doesn't land** — Kindred can't hear the live meeting | **High** | `/ask` + manual wake drive the demo entirely from the dashboard; harness gives a full offline path |
+| Wake false-positive on stage — someone says "Hey AGI" while explaining it | **High** | Finalized-transcript-only matching, positional guard, homophone variants, mute switch, manual wake |
+| Transcript ingestion needs a public `wss://` | Medium | ngrok early; audio output deliberately does not depend on it |
+| Speech latency feels dead | Medium | Sentence streaming (#8); measure first-audio explicitly |
+| Kindred interjects too much | Medium | Gate: confidence + cooldown + cap, tunable live |
+| No persistence — a restart loses the meeting | Medium | Accepted for the hackathon. Do not restart the backend mid-demo. |
+| Conference wifi | Medium | Fixture harness is a fully offline demo path |
+| 500-char alerts feel thin | Low | By design: chat alerts, dashboard argues |
+| Screenshare audio invisible live | Low | Documented; don't demo a shared video |
 
 ---
 
 ## 13. Open questions
 
-1. **Tenstorrent credentials** — do you have them? It's the only sponsor item whose
-   critical path is account setup rather than code.
-2. **Whose Google account joins?** Recall bots can join as a guest awaiting admission, or
-   you can admit them manually. For the demo, manual admission is fine and simpler.
-3. **Consent/disclosure** — Recall supports pinning a chat message on join. Recommend
-   pinning "Kindred is recording and may comment" by default. Cheap, and it preempts the
-   obvious judge question about recording people.
-4. **Do you want persistent cross-meeting memory?** Everything above is per-meeting plus
-   static documents. "Kindred remembers what you said three meetings ago" is a strong
-   demo beat but a schema addition — worth deciding now, not later.
+1. **Tenstorrent credentials** — still unanswered, still the only sponsor item whose
+   critical path is account setup rather than code. The triage seam is ready for it.
+2. **Consent disclosure** — Recall can pin a chat message on join, and `--announce
+   greeting` can speak one. Recommend turning one on by default; it preempts the obvious
+   judge question about recording people.
+3. **Cross-meeting memory** — `pipeline/context.py` is per-meeting. "Kindred remembers
+   what you said three meetings ago" is a strong demo beat and a schema addition. Decide
+   before the frontend hardens.
+4. **Persistence** — worth it before demo day, or is in-memory acceptable given a restart
+   loses everything?
