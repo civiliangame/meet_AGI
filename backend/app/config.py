@@ -88,6 +88,47 @@ class AppConfig(BaseSettings):
     inworld_model_id: str = "inworld-tts-2"
     inworld_base_url: str = "https://api.inworld.ai"
 
+    public_base_url: str | None = Field(
+        default=None,
+        description=(
+            "Publicly reachable https base URL for this backend — an ngrok or Cloudflare "
+            "tunnel in dev. Recall pushes real-time transcript here, so without it the "
+            "bot can speak but cannot hear, and the wake word never fires."
+        ),
+        examples=["https://thoroughly-liberal-mouse.ngrok-free.app"],
+    )
+    recall_webhook_token: str = Field(
+        default="kindred-dev",
+        description=(
+            "Shared secret appended to the webhook URL as `?token=`. Recall documents "
+            "this as the simpler of its two verification options; the other is an HMAC "
+            "signature over the workspace secret. Anything reachable from the internet "
+            "needs one of them — the endpoint takes unauthenticated POSTs otherwise."
+        ),
+    )
+    transcript_silence_ms: int = Field(
+        default=1000,
+        description=(
+            "Silence after the last word before an utterance counts as finished. Recall "
+            "streams transcript word-by-word, so this is what turns a word stream back "
+            "into 'someone finished a sentence'. Lower is snappier and more likely to "
+            "cut a speaker off mid-thought."
+        ),
+    )
+
+    @property
+    def webhook_url(self) -> str | None:
+        """Where Recall should POST real-time events, or None if no tunnel is set.
+
+        The trailing slash before the query string is required: Recall calls the URL
+        exactly as given, and FastAPI answers the un-slashed path with a 307 that the
+        webhook sender does not follow.
+        """
+        if not self.public_base_url:
+            return None
+        base = self.public_base_url.rstrip("/")
+        return f"{base}/api/recall/webhook/?token={self.recall_webhook_token}"
+
     recall_api_key: str | None = None
     recall_region: str = Field(
         default="us-west-2",

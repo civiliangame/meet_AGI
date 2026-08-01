@@ -26,6 +26,7 @@ import logging
 from dataclasses import dataclass, field
 
 from ...audio import AudioClip, RecallAudioSink
+from ...config import get_config
 from ...bus import EventBus
 from ...bus import bus as default_bus
 from ...ids import PREFIX_MEETING, new_id
@@ -126,11 +127,22 @@ class RecallSessionManager:
             source=MeetingSource.RECALL,
         )
 
+        # No tunnel means no real-time transcript: the bot can speak but not hear, and
+        # the wake word never fires. Worth saying out loud, because everything else
+        # about the meeting looks perfectly healthy in that state.
+        webhook_url = get_config().webhook_url
+        if webhook_url is None:
+            logger.warning(
+                "PUBLIC_BASE_URL is not set — dispatching a bot that cannot hear. Set it "
+                "to your tunnel (e.g. https://<id>.ngrok-free.app) for the wake word."
+            )
+
         bot = await self._client.create_bot(
             meeting_url=meeting_url,
             bot_name=self._bot_name,
             join_announcement_mp3=announcement.mp3,
             replay_on_participant_join=replay_on_participant_join,
+            webhook_url=webhook_url,
             metadata={"meeting_id": meeting.id},
         )
         meeting.bot_id = bot["id"]
@@ -284,6 +296,14 @@ class RecallSessionManager:
                     await session.watcher
 
         await self._speech.detach(meeting_id)
+
+        # Drop any half-buffered utterance and this meeting's pipeline state, so a
+        # later meeting cannot inherit a dangling flush timer or a stale cooldown.
+        from ...ingest.recall_live import ingest
+        from ...pipeline import engine
+
+        ingest.forget(meeting_id)
+        engine.forget(meeting_id)
 
         meeting = self._store.meetings.get(meeting_id)
         if meeting is None:

@@ -56,6 +56,17 @@ handle_final_segment(segment)
 The ambient loop looks for two kinds of conflict: a claim that contradicts the documents,
 and a claim that contradicts what someone else already said in this meeting.
 
+**Reasoning runs on Gemini** (`gemini-3.5-flash-lite`), roughly 1-2s per call. Claude is
+still wired behind the same `LLMProvider` seam — set `LLM_PROVIDER=claude` to switch.
+
+**Kindred talks while it thinks.** Retrieval plus generation is a couple of seconds, and
+to a room that just asked a question out loud, silence reads as "it didn't hear me". So
+it plays a short filler first — *"Great question, on it now."* — in its own voice, then
+the answer. The lines are synthesized once and cached under
+`app/assets/audio/fillers/<voice>/`, so they cost nothing at wake time. Playback is
+serialized per meeting, which is what guarantees the answer waits for the filler rather
+than talking over it.
+
 **Retrieval is plain text, deliberately.** `knowledge/*.txt` is chunked on `##` headings
 and scored by keyword overlap, then Claude reads the top handful. The corpus is small
 enough that a frontier model beats cosine similarity over it, and it keeps Postgres,
@@ -100,14 +111,18 @@ chunks it loaded. Check it before blaming the demo.
 
 ### Turning the real loop on
 
-With `ANTHROPIC_API_KEY` set, the harness stops replaying its scripted conclusions and
-feeds the transcript to the live pipeline instead — Kindred has to *find* the planted
-contradiction in `knowledge/`, not be handed it. With the key unset everything still
-runs on canned output, so the frontend is buildable with an empty `.env`.
+With a reasoning key set (`GEMINI_API_KEY`, or `ANTHROPIC_API_KEY`), the harness stops
+replaying its scripted conclusions and feeds the transcript to the live pipeline
+instead — Kindred has to *find* the planted contradiction in `knowledge/`, not be handed
+it. With no key everything still runs on canned output, so the frontend is buildable
+with an empty `.env`.
 
 ```bash
-cp .env.example .env      # then fill in ANTHROPIC_API_KEY and INWORLD_API_KEY
+cp .env.example .env      # then fill in GEMINI_API_KEY and INWORLD_API_KEY
 ```
+
+The test suite pins both providers off (`tests/conftest.py`), so it behaves the same
+whether or not you have keys locally.
 
 `autonomy` controls how far an interjection travels: `silent` (dashboard only),
 `propose` (waits for approval), `auto_post` (types into the meeting — the default).

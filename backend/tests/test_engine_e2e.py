@@ -248,9 +248,9 @@ class TestSpeechMode:
             )
         )
         await engine.drain()
-        # Generous: the filler plays to completion before the answer starts, and the
-        # sample clips standing in for both are several seconds each.
-        await runtime.speech.wait_until_idle(MEETING_ID, timeout=30)
+        # Deliberately does not wait for playback: what this test is about is *what*
+        # Kindred decided to say, and blocking on ~12s of real clip duration only makes
+        # it flaky under load. `test_filler_is_queued_before_the_answer` covers playback.
 
         answers = store.interjections_for(MEETING_ID)
         assert len(answers) == 1
@@ -285,7 +285,9 @@ class TestSpeechMode:
         assert _is_filler(history[0]), f"first utterance should be filler, got {history[0].clip_id}"
         assert not _is_filler(history[1]), "the answer must come second"
 
-        await runtime.speech.wait_until_idle(MEETING_ID, timeout=30)
+        # Two sample clips of real duration play back to back here, so the budget is
+        # generous on purpose — a tight one turns a correctness test into a load test.
+        await runtime.speech.wait_until_idle(MEETING_ID, timeout=90)
         # Serialized: the filler finished before the answer was handed to the sink.
         assert history[0].played_at is not None
         assert history[1].played_at is not None

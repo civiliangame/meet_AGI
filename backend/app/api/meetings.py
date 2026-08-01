@@ -267,6 +267,12 @@ async def ask(
     )
     _set_agent_state(meeting, AgentState.THINKING, "answering a typed question")
 
+    # Same courtesy as the spoken path: if this answer is going out loud, fill the gap
+    # while the model works rather than leaving the room in silence. Queued first, so
+    # the answer plays behind it.
+    if payload.speak:
+        await engine.say_filler(meeting_id)
+
     transcript = engine.memory.for_meeting(meeting_id).render()
     answer = await answer_question(
         question=payload.question, asker="the dashboard", transcript=transcript

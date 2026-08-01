@@ -14,6 +14,7 @@ from . import (
     live,
     meetings,
     people,
+    recall,
     review,
     schema_only,
     settings,
@@ -32,6 +33,7 @@ api_router.include_router(review.router)
 api_router.include_router(speech.router)
 api_router.include_router(interjections.router)
 api_router.include_router(dev.router)
+api_router.include_router(recall.router)
 api_router.include_router(schema_only.router)
 
 # WebSockets last: they carry no prefix of their own and mount directly under /api.

@@ -163,9 +163,10 @@ class RecallClient:
         replay_on_participant_join: bool = False,
         start_recording_on: str = "call_join",
         everyone_left_timeout: int = 300,
+        webhook_url: str | None = None,
         metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Dispatch a bot that is allowed to speak.
+        """Dispatch a bot that is allowed to speak, and to hear.
 
         `join_announcement_mp3` plays once when recording starts. Pass the silent clip
         when there is nothing to announce — the field is mandatory in practice because
@@ -174,6 +175,11 @@ class RecallClient:
         `start_recording_on="call_join"` starts recording the moment the bot is admitted.
         The Recall default (`participant_join`) means a bot alone in an empty room never
         starts recording, and audio output is gated on recording having started.
+
+        `webhook_url` turns on real-time transcription. Both halves are required and
+        Recall fails quietly if either is missing: a `transcript.provider` with nothing
+        listening produces no events, and a `realtime_endpoint` with no provider has
+        nothing to send. Without it the bot can talk but not listen.
         """
         automatic_audio_output: dict[str, Any] = {
             "in_call_recording": {
@@ -195,11 +201,44 @@ class RecallClient:
         # whole point with it.
         automatic_leave = {"everyone_left_timeout": {"timeout": everyone_left_timeout}}
 
+        recording_config: dict[str, Any] = {"start_recording_on": start_recording_on}
+
+        if webhook_url:
+            recording_config["transcript"] = {
+                "provider": {
+                    "recallai_streaming": {
+                        # The accuracy-first default runs an async model underneath and
+                        # lands utterances seconds late. A copilot answering out loud
+                        # needs the low-latency path far more than it needs the last
+                        # few points of word accuracy.
+                        "mode": "prioritize_low_latency",
+                        "language_code": "en",
+                    }
+                },
+                # Per-speaker audio streams, so "who said this" is the platform's answer
+                # rather than a guess from voice similarity. Kindred attributes claims to
+                # named people, so getting the speaker wrong is worse than not flagging.
+                "diarization": {"use_separate_streams_when_available": True},
+            }
+            recording_config["realtime_endpoints"] = [
+                {
+                    "type": "webhook",
+                    "url": webhook_url,
+                    "events": [
+                        "transcript.data",
+                        "participant_events.join",
+                        "participant_events.leave",
+                        "participant_events.speech_on",
+                        "participant_events.speech_off",
+                    ],
+                }
+            ]
+
         payload: dict[str, Any] = {
             "meeting_url": meeting_url,
             "bot_name": bot_name,
             "automatic_leave": automatic_leave,
-            "recording_config": {"start_recording_on": start_recording_on},
+            "recording_config": recording_config,
             "automatic_audio_output": automatic_audio_output,
         }
         if metadata:

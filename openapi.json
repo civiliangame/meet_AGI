@@ -3298,7 +3298,10 @@
                 "type": "null"
               }
             ],
-            "default": "kindred_v1",
+            "description": "Provider-specific voice id, or null to use the one the server is configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up id is not a placeholder here \u2014 the provider looks it up and 404s, and Kindred goes silent mid-meeting.",
+            "examples": [
+              "Dennis"
+            ],
             "title": "Voice Id"
           }
         },
@@ -3327,7 +3330,10 @@
                 "type": "null"
               }
             ],
-            "default": "kindred_v1",
+            "description": "Provider-specific voice id, or null to use the one the server is configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up id is not a placeholder here \u2014 the provider looks it up and 404s, and Kindred goes silent mid-meeting.",
+            "examples": [
+              "Dennis"
+            ],
             "title": "Voice Id"
           }
         },

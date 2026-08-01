@@ -162,6 +162,15 @@ class PipelineEngine:
 
     async def _on_wake(self, segment: TranscriptSegment, match) -> None:
         self._last_wake[segment.meeting_id] = time.monotonic()
+        # Logged as well as published: when the wake word misfires on stage, the server
+        # log is what you actually have in front of you, and knowing which variant
+        # matched is the difference between a fix and a guess.
+        log.info(
+            "WAKE in %s — matched %r, question=%r",
+            segment.meeting_id,
+            match.matched_text,
+            match.question[:80],
+        )
         bus.publish_meeting(
             segment.meeting_id,
             "speech.wake_detected",
@@ -207,7 +216,7 @@ class PipelineEngine:
         # "it didn't hear me". The filler is pre-rendered, so queueing it costs nothing,
         # and because playback is serialized per meeting the real answer automatically
         # waits for it to finish rather than talking over it.
-        await self._say_filler(meeting_id)
+        await self.say_filler(meeting_id)
 
         transcript = self.memory.for_meeting(meeting_id).render(exclude_segment_id=segment.id)
         answer = await reason.answer_question(
@@ -306,7 +315,7 @@ class PipelineEngine:
     async def _say_clip(self, meeting_id: str, clip_id: str) -> None:
         await self._say(meeting_id, clip_id=clip_id)
 
-    async def _say_filler(self, meeting_id: str) -> None:
+    async def say_filler(self, meeting_id: str) -> None:
         """Queue a cached "let me look that up" line, in Kindred's own voice.
 
         Falls back to the sample provider's `checking` clip, which says much the same
