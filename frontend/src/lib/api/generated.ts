@@ -1994,13 +1994,20 @@ export interface components {
         };
         /**
          * SourceQuote
-         * @description One passage Kindred cited, and which interjection used it.
+         * @description One passage Kindred cited, and every claim that leaned on it.
+         *
+         *     Deduplicated by passage rather than listed per citation: two claims citing the same
+         *     line of a deck is one piece of evidence used twice, and rendering the identical
+         *     quote twice on an audit screen reads as a bug. `interjection_ids` carries both.
          */
         SourceQuote: {
             /** Chunk Id */
             chunk_id: string;
-            /** Interjection Id */
-            interjection_id: string;
+            /**
+             * Interjection Ids
+             * @description Every claim that cited this passage.
+             */
+            interjection_ids: string[];
             /**
              * Page
              * @description 1-indexed. Null for non-paginated sources.

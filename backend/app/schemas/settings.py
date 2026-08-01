@@ -69,7 +69,16 @@ class InterjectionPolicy(Schema):
 
 class VoiceSettings(Schema):
     provider: VoiceProviderName = VoiceProviderName.INWORLD
-    voice_id: str | None = Field(default="kindred_v1")
+    voice_id: str | None = Field(
+        default=None,
+        description=(
+            "Provider-specific voice id, or null to use the one the server is "
+            "configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up "
+            "id is not a placeholder here — the provider looks it up and 404s, and "
+            "Kindred goes silent mid-meeting."
+        ),
+        examples=["Dennis"],
+    )
     speaking_rate: float = Field(default=1.0, ge=0.5, le=2.0)
 
 

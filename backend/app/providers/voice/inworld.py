@@ -77,9 +77,10 @@ class InworldVoiceProvider:
             )
             spoken = spoken[:MAX_INPUT_CHARS].rsplit(" ", 1)[0] + "..."
 
+        requested_voice = voice_id or self._voice_id
         payload = {
             "text": spoken,
-            "voiceId": voice_id or self._voice_id,
+            "voiceId": requested_voice,
             "modelId": self._model_id,
             "audioConfig": {
                 "audioEncoding": "MP3",
@@ -92,11 +93,32 @@ class InworldVoiceProvider:
         except httpx.HTTPError as exc:
             raise VoiceError(f"could not reach Inworld: {exc}") from exc
 
+        # An unknown voice id is a 404, and it is the likeliest misconfiguration here:
+        # `Settings.voice.voice_id` is operator-editable and Inworld's catalogue is not
+        # validated against it. Retry once in the configured voice rather than letting
+        # Kindred go silent for the rest of the meeting over a settings typo.
+        if response.status_code == 404 and requested_voice != self._voice_id:
+            logger.warning(
+                "Inworld does not know voice %r; falling back to %r",
+                requested_voice,
+                self._voice_id,
+            )
+            payload["voiceId"] = self._voice_id
+            try:
+                response = await self._client.post("/tts/v1/voice", json=payload)
+            except httpx.HTTPError as exc:
+                raise VoiceError(f"could not reach Inworld: {exc}") from exc
+
         if response.status_code in (401, 403):
             raise VoiceError(
                 f"Inworld rejected the API key ({response.status_code}). The key is sent "
                 f"verbatim after `Basic` — check INWORLD_API_KEY is the base64 credential "
                 f"from the console, not a raw user:password pair."
+            )
+        if response.status_code == 404:
+            raise VoiceError(
+                f"Inworld has no voice {payload['voiceId']!r} (or the model "
+                f"{self._model_id!r} is wrong). Check INWORLD_VOICE_ID."
             )
         if response.status_code >= 400:
             raise VoiceError(f"Inworld returned {response.status_code}: {response.text[:300]}")

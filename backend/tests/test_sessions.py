@@ -166,7 +166,8 @@ def test_sources_aggregate_citations_by_document(client: TestClient) -> None:
     assert any(s["filename"] == "Q3-board-deck.pdf" for s in sources)
 
     for source in sources:
-        assert source["citation_count"] == len(source["quotes"])
+        # Quotes are deduped by passage, so citations >= distinct quotes.
+        assert source["citation_count"] >= len(source["quotes"])
         assert source["interjection_ids"]
         for quote in source["quotes"]:
             assert quote["quote"], "a citation with no quote is not evidence"
@@ -184,7 +185,9 @@ def test_source_quotes_trace_back_to_real_interjections(client: TestClient) -> N
     known = {i["id"] for i in bundle["interjections"]}
     for source in bundle["sources"]:
         for quote in source["quotes"]:
-            assert quote["interjection_id"] in known, "a source must cite a real claim"
+            assert quote["interjection_ids"], "a passage with no claim behind it is orphaned"
+            for claim_id in quote["interjection_ids"]:
+                assert claim_id in known, "a source must cite a real claim"
 
 
 # --- Review surface ---------------------------------------------------------------
@@ -255,3 +258,19 @@ def test_delete_removes_session_and_archive(client: TestClient) -> None:
 def test_review_endpoints_404_on_unknown_session(client: TestClient) -> None:
     for path in ("bundle", "sources", "search"):
         assert client.get(f"/api/meetings/mtg_nope/{path}").status_code == 404
+
+
+def test_repeated_passage_is_one_quote_with_two_backlinks(client: TestClient) -> None:
+    """The same deck line cited by two claims is one piece of evidence, not two.
+
+    Rendering the identical quote twice on the audit screen reads as a bug.
+    """
+    meeting_id = _run_fixture(client)
+    sources = client.get(f"/api/meetings/{meeting_id}/sources").json()["items"]
+
+    for source in sources:
+        texts = [q["quote"] for q in source["quotes"]]
+        assert len(texts) == len(set(texts)), f"{source['filename']} repeats a passage"
+
+    shared = [q for s in sources for q in s["quotes"] if len(q["interjection_ids"]) > 1]
+    assert shared, "the fixture has a passage cited by more than one claim"

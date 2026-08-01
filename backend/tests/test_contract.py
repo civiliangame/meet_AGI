@@ -198,6 +198,12 @@ def test_harness_emits_full_event_stream(client: TestClient) -> None:
         assert first["type"] == "snapshot", "connect must yield exactly one snapshot"
         assert first["seq"] >= 1
         assert first["data"]["meeting"]["id"] == meeting_id
+        # The fixture's joins fire within ~45ms of wall clock at speed 50, so a client
+        # that subscribes after starting the meeting may legitimately miss those events.
+        # Nothing is lost: the snapshot carries the roster, which is the documented
+        # recovery. Track what the snapshot already knew so the assertions below can
+        # accept either path, the same way a real frontend has to.
+        roster_at_connect = {e["participant_id"] for e in first["data"]["meeting"]["roster"]}
 
         # The fixture is ~161s of content at 50x, so ~3.2s of wall clock.
         for _ in range(400):
@@ -216,7 +222,9 @@ def test_harness_emits_full_event_stream(client: TestClient) -> None:
                 break
 
     kinds = set(seen)
-    assert "participant.joined" in kinds
+    assert (
+        "participant.joined" in kinds or roster_at_connect
+    ), "the roster must arrive, by snapshot or by event"
     assert "transcript.partial" in kinds, "frontend live-line rendering needs partials"
     assert "transcript.final" in kinds
     assert "participant.speaking_changed" in kinds

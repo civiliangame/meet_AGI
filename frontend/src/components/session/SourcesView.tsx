@@ -68,13 +68,18 @@ export function SourcesView({
                   ) : null}
                   {quote.quote}
                 </div>
-                <button
-                  onClick={() => onJumpToClaim(quote.interjection_id)}
-                  className="mt-1 truncate text-left text-[11px] transition-opacity hover:opacity-70"
-                  style={{ color: "var(--color-accent-500)" }}
-                >
-                  ↳ used in: {headlineFor(quote.interjection_id)}
-                </button>
+                <div className="mt-1 flex flex-col items-start gap-0.5">
+                  {quote.interjection_ids.map((claimId) => (
+                    <button
+                      key={claimId}
+                      onClick={() => onJumpToClaim(claimId)}
+                      className="max-w-full truncate text-left text-[11px] transition-opacity hover:opacity-70"
+                      style={{ color: "var(--color-accent-500)" }}
+                    >
+                      ↳ used in: {headlineFor(claimId)}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

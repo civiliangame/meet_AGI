@@ -28,5 +28,14 @@ def get_settings() -> Settings:
 )
 def update_settings(payload: SettingsUpdate) -> Settings:
     updates = payload.model_dump(exclude_unset=True)
-    store.settings = store.settings.model_copy(update=updates)
+
+    # Merge into a plain dict and re-validate, rather than `model_copy(update=...)`.
+    # `model_copy` writes values in without validating: a nested object would be stored
+    # as the raw dict it arrived as, so `settings.voice.voice_id` becomes an
+    # AttributeError at the moment Kindred tries to speak. Re-validating also enforces
+    # the field constraints — bounds on `min_confidence`, `speaking_rate` and the rest —
+    # which `model_copy` skips entirely.
+    merged = store.settings.model_dump()
+    merged.update(updates)
+    store.settings = Settings.model_validate(merged)
     return store.settings

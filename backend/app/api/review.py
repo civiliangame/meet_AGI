@@ -48,6 +48,9 @@ def _collect_sources(meeting_id: str) -> list[CitedDocument]:
     that is the order a human auditing the session wants to read them in.
     """
     by_document: dict[str, CitedDocument] = {}
+    # (document, passage) -> the quote entry, so the same line cited by two claims is
+    # one piece of evidence with two backlinks rather than a repeated block.
+    by_passage: dict[tuple[str, str], SourceQuote] = {}
 
     for interjection in store.interjections_for(meeting_id):
         for citation in interjection.citations:
@@ -65,15 +68,23 @@ def _collect_sources(meeting_id: str) -> list[CitedDocument]:
             entry.citation_count += 1
             if interjection.id not in entry.interjection_ids:
                 entry.interjection_ids.append(interjection.id)
-            entry.quotes.append(
-                SourceQuote(
-                    interjection_id=interjection.id,
+
+            key = (citation.document_id, citation.quote)
+            quote = by_passage.get(key)
+            if quote is None:
+                quote = SourceQuote(
+                    interjection_ids=[],
                     chunk_id=citation.chunk_id,
                     page=citation.page,
                     quote=citation.quote,
                     relevance=citation.relevance,
                 )
-            )
+                by_passage[key] = quote
+                entry.quotes.append(quote)
+            # Keep the strongest relevance seen for a passage used more than once.
+            quote.relevance = max(quote.relevance, citation.relevance)
+            if interjection.id not in quote.interjection_ids:
+                quote.interjection_ids.append(interjection.id)
 
     return sorted(by_document.values(), key=lambda s: s.citation_count, reverse=True)
 

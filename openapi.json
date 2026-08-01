@@ -2818,15 +2818,19 @@
         "type": "object"
       },
       "SourceQuote": {
-        "description": "One passage Kindred cited, and which interjection used it.",
+        "description": "One passage Kindred cited, and every claim that leaned on it.\n\nDeduplicated by passage rather than listed per citation: two claims citing the same\nline of a deck is one piece of evidence used twice, and rendering the identical\nquote twice on an audit screen reads as a bug. `interjection_ids` carries both.",
         "properties": {
           "chunk_id": {
             "title": "Chunk Id",
             "type": "string"
           },
-          "interjection_id": {
-            "title": "Interjection Id",
-            "type": "string"
+          "interjection_ids": {
+            "description": "Every claim that cited this passage.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Interjection Ids",
+            "type": "array"
           },
           "page": {
             "anyOf": [
@@ -2853,7 +2857,7 @@
           }
         },
         "required": [
-          "interjection_id",
+          "interjection_ids",
           "chunk_id",
           "page",
           "quote",
