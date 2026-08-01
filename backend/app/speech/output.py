@@ -77,6 +77,12 @@ class SpeechOutput:
         self._store = store or default_store
         self._tail_padding_ms = tail_padding_ms
         self._channels: dict[str, _Channel] = {}
+        self._prerendered: dict[str, AudioClip] = {}
+        """Audio supplied by the caller, keyed by utterance id and consumed on playback.
+
+        Kept out of `Utterance` because that is a contract model the frontend receives —
+        mp3 bytes have no business on the wire.
+        """
 
     @property
     def voice(self) -> VoiceProvider:
@@ -141,16 +147,24 @@ class SpeechOutput:
         text: str | None = None,
         *,
         clip_id: str | None = None,
+        clip: AudioClip | None = None,
     ) -> Utterance:
         """Queue something for Kindred to say. Returns immediately.
 
-        Give `text` to go through the voice provider, or `clip_id` to play a known
-        sample clip verbatim. The returned `Utterance` is the live record — it is
-        mutated in place as it moves through `queued → speaking → played`, so a caller
-        holding it sees the outcome without polling anything.
+        Exactly one of:
+
+        - `text` — goes through the voice provider at playback time.
+        - `clip_id` — plays a known sample clip verbatim.
+        - `clip` — plays audio that is already rendered. Used for the cached filler
+          lines, which must not pay for synthesis on the path they exist to speed up.
+
+        The returned `Utterance` is the live record — it is mutated in place as it moves
+        through `queued → speaking → played`, so a caller holding it sees the outcome
+        without polling anything.
         """
-        if (text is None) == (clip_id is None):
-            raise ValueError("say() takes exactly one of `text` or `clip_id`")
+        given = [source for source in (text, clip_id, clip) if source is not None]
+        if len(given) != 1:
+            raise ValueError("say() takes exactly one of `text`, `clip_id`, or `clip`")
 
         channel = self._channels.get(meeting_id)
         if channel is None:
@@ -162,11 +176,13 @@ class SpeechOutput:
         utterance = Utterance(
             id=new_id(PREFIX_UTTERANCE),
             meeting_id=meeting_id,
-            text=text or "",
-            clip_id=clip_id,
+            text=text or (clip.text if clip else ""),
+            clip_id=clip_id or (clip.clip_id if clip else None),
             status=UtteranceStatus.QUEUED,
             created_at=utcnow(),
         )
+        if clip is not None:
+            self._prerendered[utterance.id] = clip
         self._remember(channel, utterance)
         await channel.queue.put(utterance)
         return utterance
@@ -274,6 +290,9 @@ class SpeechOutput:
         active — fixed clips are how the demo stays recoverable when the TTS provider is
         slow or down.
         """
+        # Already-rendered audio (the cached filler lines) short-circuits everything.
+        if prerendered := self._prerendered.pop(utterance.id, None):
+            return prerendered
         if utterance.clip_id:
             clip_loader = getattr(self._voice, "clip", None) or get_sample_clips().clip
             return clip_loader(utterance.clip_id)
@@ -322,6 +341,9 @@ class SpeechOutput:
     ) -> None:
         utterance.status = status
         utterance.error = error
+        # An utterance that never plays still holds its audio; drop it or a muted
+        # meeting slowly accumulates mp3s that will never be used.
+        self._prerendered.pop(utterance.id, None)
 
     def _drain(self, channel: _Channel, *, reason: str) -> list[Utterance]:
         dropped: list[Utterance] = []

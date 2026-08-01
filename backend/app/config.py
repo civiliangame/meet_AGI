@@ -29,18 +29,56 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
-    anthropic_api_key: str | None = Field(
+    llm_provider: str = Field(
+        default="auto",
+        description=(
+            "Reasoning backend. `auto` prefers Gemini when GEMINI_API_KEY is set, then "
+            "Claude, then falls back to the fixture's canned output. Force one with "
+            "`gemini`, `claude`, or `none`."
+        ),
+    )
+
+    gemini_api_key: str | None = Field(
         default=None,
         description=(
-            "Reasoning for both loops. Without it the pipeline falls back to canned "
-            "fixture output so the harness demo still runs offline."
+            "Reasoning for both loops. Must be the bare key — a value wrapped in quotes "
+            "in `.env` is sent verbatim and 400s as an invalid key."
         ),
+    )
+    gemini_model: str = Field(
+        default="gemini-3.5-flash-lite",
+        description=(
+            "There is no `gemini-3.6-flash-lite`; 3.5 is the newest *lite*. Raise to "
+            "`gemini-3.6-flash` if contradiction judgment is weak. The floating alias "
+            "`gemini-flash-lite-latest` also works, but a model that changes under a "
+            "live demo is not worth the freshness."
+        ),
+    )
+    gemini_fast_model: str = Field(
+        default="gemini-3.5-flash-lite",
+        description="Triage — the highest-QPS call in the system. See DESIGN.md §6.",
+    )
+
+    anthropic_api_key: str | None = Field(
+        default=None,
+        description="Alternative reasoning backend. Used when GEMINI_API_KEY is unset.",
     )
     anthropic_model: str = "claude-opus-5"
     anthropic_fast_model: str = Field(
         default="claude-haiku-4-5",
-        description="Used for triage — the highest-QPS call in the system. See DESIGN.md §6.",
+        description="Used for triage when Claude is the active provider.",
     )
+
+    @property
+    def resolved_llm_provider(self) -> str:
+        """Which reasoning backend `auto` actually picks. `none` means canned output."""
+        if self.llm_provider != "auto":
+            return self.llm_provider
+        if self.gemini_api_key:
+            return "gemini"
+        if self.anthropic_api_key:
+            return "claude"
+        return "none"
 
     inworld_api_key: str | None = None
     inworld_voice_id: str = Field(

@@ -18,6 +18,7 @@ Two things worth knowing if you are reading this to understand the contract:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import FastAPI, HTTPException, Request
@@ -191,6 +192,20 @@ async def on_startup() -> None:
             "Use POST /api/dev/harness/start for a fixture-backed meeting."
         )
 
+    # Render the "let me look that up" lines now, in the background. They are cached on
+    # disk, so this is a no-op on every run after the first — but paying for synthesis
+    # during the first wake of a live meeting would add latency to the one moment the
+    # filler exists to cover. Never blocks startup; the fallback is a sample clip.
+    async def _warm_fillers() -> None:
+        try:
+            count = await get_runtime().fillers.warm()
+            if count:
+                log.info("filler speech ready (%d lines)", count)
+        except Exception:
+            log.exception("could not pre-render filler speech; falling back to sample clips")
+
+    asyncio.create_task(_warm_fillers(), name="warm-fillers")
+
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
@@ -202,6 +217,19 @@ async def on_shutdown() -> None:
 
 
 # --- Health ----------------------------------------------------------------------
+
+
+def _reasoning_detail(config) -> str:
+    """One line naming the active reasoning backend and its models."""
+    provider = config.resolved_llm_provider
+    if provider == "gemini":
+        return f"Gemini ({config.gemini_model}); triage on {config.gemini_fast_model}"
+    if provider == "claude":
+        return f"Claude ({config.anthropic_model}); triage on {config.anthropic_fast_model}"
+    return (
+        "no reasoning key set (GEMINI_API_KEY or ANTHROPIC_API_KEY) — the harness "
+        "replays its canned interjections instead"
+    )
 
 
 @app.get("/api/health", response_model=Health, tags=["health"], summary="Health check")
@@ -265,16 +293,8 @@ def health() -> Health:
             ),
             HealthProvider(
                 name="reasoning",
-                configured=bool(config.anthropic_api_key),
-                detail=(
-                    f"Claude ({config.anthropic_model}); triage on "
-                    f"{config.anthropic_fast_model}"
-                    if config.anthropic_api_key
-                    else (
-                        "ANTHROPIC_API_KEY unset — the pipeline falls back to the "
-                        "fixture's canned interjections"
-                    )
-                ),
+                configured=config.resolved_llm_provider != "none",
+                detail=_reasoning_detail(config),
             ),
             HealthProvider(
                 name="knowledge",

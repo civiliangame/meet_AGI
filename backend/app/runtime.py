@@ -19,6 +19,7 @@ from .config import AppConfig, get_config
 from .integrations.recall import RecallClient, RecallSessionManager
 from .providers.voice import VoiceProvider, get_voice_provider
 from .speech import SpeechOutput
+from .speech.fillers import FillerBank
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class Runtime:
     recall: RecallClient
     speech: SpeechOutput
     sessions: RecallSessionManager
+    fillers: FillerBank
 
     @property
     def recall_configured(self) -> bool:
@@ -61,12 +63,20 @@ def build_runtime(config: AppConfig | None = None) -> Runtime:
     sessions = RecallSessionManager(
         client=recall, speech=speech, bot_name=config.bot_name
     )
+    fillers = FillerBank(voice, voice_id=config.inworld_voice_id)
     if not recall.configured:
         logger.warning(
             "RECALL_API_KEY is not set — Kindred can run the harness but cannot join a "
             "real meeting."
         )
-    return Runtime(config=config, voice=voice, recall=recall, speech=speech, sessions=sessions)
+    return Runtime(
+        config=config,
+        voice=voice,
+        recall=recall,
+        speech=speech,
+        sessions=sessions,
+        fillers=fillers,
+    )
 
 
 _runtime: Runtime | None = None

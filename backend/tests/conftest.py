@@ -23,24 +23,33 @@ for _var in (
     "RECALL_API_KEY",
     "INWORLD_API_KEY",
     "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
     "CHARACTERAI_API_KEY",
     "TENSTORRENT_ENDPOINT",
 ):
     os.environ[_var] = ""
 
-# Pin the voice provider so the suite does not depend on which keys happen to be set.
+# Pin both providers so the suite does not depend on which keys happen to be set.
 os.environ["VOICE_PROVIDER"] = "sample"
+
+# `none` keeps the fixture harness on its canned timeline. Without this, a developer
+# with a reasoning key in `.env` runs a different code path than CI — the harness feeds
+# the live pipeline, interjections arrive asynchronously seconds later, and every test
+# that asserts on fixture output fails for reasons that have nothing to do with the
+# change under test. Tests that want the pipeline patch in a stub explicitly.
+os.environ["LLM_PROVIDER"] = "none"
 
 import pytest  # noqa: E402
 
 from app.config import get_config  # noqa: E402
+from app.providers.llm import get_llm_provider  # noqa: E402
 from app.providers.voice import get_voice_provider  # noqa: E402
 
 
 @pytest.fixture(autouse=True, scope="session")
 def _clear_caches():
     """Drop memoized config and providers built before the env was pinned."""
-    for fn in (get_config, get_voice_provider):
+    for fn in (get_config, get_voice_provider, get_llm_provider):
         cache_clear = getattr(fn, "cache_clear", None)
         if cache_clear is not None:
             cache_clear()

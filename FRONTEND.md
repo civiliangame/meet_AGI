@@ -169,7 +169,6 @@ Each card:
 - **`citations[]`** — expandable. Each has `filename`, `page`, and `quote`. **Render
   `quote` verbatim** — it is the evidence, and paraphrasing it destroys the entire point.
   Clicking a citation opens that document in the Sources view.
-- **`confidence`** — see the warning in §6.
 - **`chat_alert`** — what the meeting actually saw in Google Meet chat. Show it, visually
   marked as "what was posted", distinct from `body_md`. Users will ask "what did everyone
   else see?" and this answers it.
@@ -328,11 +327,10 @@ announcement. An old frontend must degrade, not crash.
 **Render `citation.quote` and `trigger.quote` verbatim.** They are evidence. Truncate with
 an expander if you must, never paraphrase or reflow.
 
-**Do not present `confidence` as accuracy.** It is the model's self-report, not a measured
-error rate. "82% confident" invites a user to read it as "82% likely true", which is not
-what it means and not defensible. Prefer a coarse band — high / medium / low — or show the
-number with a tooltip explaining what it is. This matters: the product's credibility rests
-on not overstating itself.
+**Do not surface `confidence` in the UI.** The field exists on `Interjection` and the
+backend uses it to rate-limit, but it is the model's self-report and does not belong in
+front of a user. The evidence is the argument; a number next to it adds nothing and
+invites being read as an accuracy rate. Ignore the field.
 
 **`chat_alert` ≤ 500 characters** because Google Meet caps chat there. That constraint is
 why an interjection has both a short `chat_alert` (what the meeting saw) and a long

@@ -146,6 +146,16 @@ def engine(monkeypatch, deck_chunk_id: str) -> PipelineEngine:
     return instance
 
 
+def _is_filler(utterance) -> bool:
+    """Filler and ack audio, as opposed to something Kindred actually worked out.
+
+    Under real TTS these are `filler:*`; with the sample provider standing in they are
+    the fixed `checking` and `chime` clips.
+    """
+    clip_id = utterance.clip_id or ""
+    return clip_id.startswith("filler:") or clip_id in {"checking", "chime"}
+
+
 def segment(text: str, *, speaker: str = "Marcus Webb", participant: str = "p_3"):
     return TranscriptSegment(
         id=new_id(PREFIX_SEGMENT),
@@ -238,7 +248,9 @@ class TestSpeechMode:
             )
         )
         await engine.drain()
-        await runtime.speech.wait_until_idle(MEETING_ID, timeout=10)
+        # Generous: the filler plays to completion before the answer starts, and the
+        # sample clips standing in for both are several seconds each.
+        await runtime.speech.wait_until_idle(MEETING_ID, timeout=30)
 
         answers = store.interjections_for(MEETING_ID)
         assert len(answers) == 1
@@ -248,11 +260,36 @@ class TestSpeechMode:
         # It queued the ear-friendly line, not the headline. The sample voice provider
         # substitutes a canned clip and records what it was asked to say in
         # `requested_text`, so that is where the real answer lands under the stand-in.
-        spoken = [u for u in runtime.speech.history(MEETING_ID) if u.clip_id != "chime"]
-        assert spoken, "Kindred must actually queue audio"
-        said = spoken[0].requested_text or spoken[0].text
+        real = [u for u in runtime.speech.history(MEETING_ID) if not _is_filler(u)]
+        assert real, "Kindred must actually queue audio"
+        said = real[0].requested_text or real[0].text
         assert "twelve percent" in said
         assert "**" not in said and "p.14" not in said, "spoken text must be ear-friendly"
+
+    async def test_filler_is_queued_before_the_answer(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """The room hears something immediately, and the answer waits its turn.
+
+        Ordering is the whole feature: a filler that played *after* the answer would be
+        worse than no filler. `SpeechOutput` serializes per meeting, so queueing the
+        filler first is what guarantees it.
+        """
+        engine.handle_final_segment(
+            segment("Hey AGI, what does the deck say about churn?", participant="p_1")
+        )
+        await engine.drain()
+
+        history = runtime.speech.history(MEETING_ID)
+        assert len(history) >= 2, "expected a filler and an answer"
+        assert _is_filler(history[0]), f"first utterance should be filler, got {history[0].clip_id}"
+        assert not _is_filler(history[1]), "the answer must come second"
+
+        await runtime.speech.wait_until_idle(MEETING_ID, timeout=30)
+        # Serialized: the filler finished before the answer was handed to the sink.
+        assert history[0].played_at is not None
+        assert history[1].played_at is not None
+        assert history[0].played_at <= history[1].played_at
 
         assert len(chat.sent) == 1
         assert "p.14" in chat.sent[0]

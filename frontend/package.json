@@ -4,12 +4,24 @@
   "private": true,
   "description": "Kindred dashboard — config and live meeting view.",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "gen:types": "bash ../scripts/gen-types.sh",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "openapi-typescript": "^7.13.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }

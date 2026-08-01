@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/* Kindred is a reading tool, not a metrics dashboard. The palette is mostly neutral
+   so that the three voices on a claim card — what a human said, what Kindred
+   concluded, what a document says — can be told apart by treatment rather than by
+   competing with decorative colour. */
+
+@theme {
+  --color-ink-50: #f7f7f8;
+  --color-ink-100: #ebecee;
+  --color-ink-200: #d6d8dc;
+  --color-ink-300: #b1b5bd;
+  --color-ink-400: #858b96;
+  --color-ink-500: #666d79;
+  --color-ink-600: #4e545e;
+  --color-ink-700: #3d424b;
+  --color-ink-800: #23262c;
+  --color-ink-850: #191c21;
+  --color-ink-900: #121417;
+  --color-ink-950: #0b0c0e;
+
+  --color-accent-400: #7aa2f7;
+  --color-accent-500: #5b86e5;
+  --color-accent-600: #3f66c4;
+
+  --color-flag-400: #e0a458;
+  --color-flag-500: #c8873a;
+
+  --color-speak-400: #6cc4a1;
+  --color-speak-500: #45a380;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+:root {
+  --bg: var(--color-ink-50);
+  --bg-raised: #ffffff;
+  --bg-sunken: var(--color-ink-100);
+  --border: var(--color-ink-200);
+  --text: var(--color-ink-900);
+  --text-muted: var(--color-ink-500);
+  --text-faint: var(--color-ink-400);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--color-ink-950);
+    --bg-raised: var(--color-ink-900);
+    --bg-sunken: var(--color-ink-850);
+    --border: var(--color-ink-800);
+    --text: var(--color-ink-100);
+    --text-muted: var(--color-ink-400);
+    --text-faint: var(--color-ink-500);
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Quotations are evidence. Both kinds get a left rule so they read as "someone else's
+   words" at a glance, never as Kindred's own prose. */
+.quote-human {
+  border-left: 2px solid var(--color-accent-500);
+  background: color-mix(in srgb, var(--color-accent-500) 7%, transparent);
+}
+
+.quote-doc {
+  border-left: 2px solid var(--color-flag-500);
+  background: color-mix(in srgb, var(--color-flag-500) 8%, transparent);
+  font-family: var(--font-mono);
+}
+
+.prose-body {
+  line-height: 1.65;
+}
+.prose-body p {
+  margin-bottom: 0.75rem;
+}
+.prose-body p:last-child {
+  margin-bottom: 0;
+}
+.prose-body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.prose-body ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.prose-body li {
+  margin-bottom: 0.25rem;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.pulsing {
+  animation: pulse-ring 1.6s ease-out infinite;
+}
+
+@keyframes flash-in {
+  from { background: color-mix(in srgb, var(--color-accent-500) 22%, transparent); }
+  to { background: transparent; }
+}
+.flash {
+  animation: flash-in 1.4s ease-out;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent-500) 30%, transparent);
+}

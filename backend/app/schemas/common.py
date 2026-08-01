@@ -47,9 +47,23 @@ class Schema(BaseModel):
     `populate_by_name` lets the backend accept either field names or aliases;
     `use_enum_values` keeps string enums as plain strings in JSON so the frontend
     sees `"connected"` rather than a nested representation.
+
+    `json_schema_serialization_defaults_required` is the one that matters for the
+    frontend. A Pydantic field with a default is not *required*, so by default it is
+    omitted from `required` in the JSON Schema — and the generated TypeScript types it
+    as `T | undefined`. But a response always contains it: `citations` is `[]`, never
+    absent. Without this flag every consumer writes `?? []` against a case the server
+    cannot produce, which is noise that also hides the genuinely optional fields.
+
+    This affects the *serialization* schema only, which is what FastAPI uses for
+    responses. Request bodies keep their optional fields optional.
     """
 
-    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        use_enum_values=True,
+        json_schema_serialization_defaults_required=True,
+    )
 
 
 class Page(Schema, Generic[T]):

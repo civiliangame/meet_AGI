@@ -10,6 +10,9 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "ok"
+        ],
         "title": "Ack",
         "type": "object"
       },
@@ -43,7 +46,8 @@
           }
         },
         "required": [
-          "agent_state"
+          "agent_state",
+          "detail"
         ],
         "title": "AgentStateChangedData",
         "type": "object"
@@ -83,7 +87,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "AgentStateChangedEvent",
@@ -137,7 +143,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "AnsweredEvent",
@@ -270,6 +278,7 @@
           "document_id",
           "filename",
           "chunk_id",
+          "page",
           "quote",
           "relevance"
         ],
@@ -310,7 +319,9 @@
         "required": [
           "document_id",
           "filename",
-          "citation_count"
+          "citation_count",
+          "interjection_ids",
+          "quotes"
         ],
         "title": "CitedDocument",
         "type": "object"
@@ -363,7 +374,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "ClarificationAskedEvent",
@@ -379,6 +392,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "type"
+        ],
         "title": "ClientMessage",
         "type": "object"
       },
@@ -489,6 +505,11 @@
           "filename",
           "mime_type",
           "size_bytes",
+          "source",
+          "status",
+          "error",
+          "chunk_count",
+          "tags",
           "created_at"
         ],
         "title": "Document",
@@ -551,7 +572,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "DocumentStatusChangedEvent",
@@ -623,7 +646,8 @@
         },
         "required": [
           "code",
-          "message"
+          "message",
+          "detail"
         ],
         "title": "ErrorDetail",
         "type": "object"
@@ -663,7 +687,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "ErrorEvent",
@@ -885,7 +911,13 @@
         },
         "required": [
           "provider",
-          "display_name"
+          "display_name",
+          "status",
+          "connected_at",
+          "account_label",
+          "capabilities",
+          "is_stub",
+          "error"
         ],
         "title": "Integration",
         "type": "object"
@@ -1022,7 +1054,11 @@
           "headline",
           "body_md",
           "confidence",
-          "created_at"
+          "citations",
+          "spoken",
+          "error",
+          "created_at",
+          "posted_at"
         ],
         "title": "Interjection",
         "type": "object"
@@ -1075,7 +1111,7 @@
         "title": "InterjectionKind",
         "type": "string"
       },
-      "InterjectionPolicy": {
+      "InterjectionPolicy-Input": {
         "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.",
         "properties": {
           "cooldown_seconds": {
@@ -1102,6 +1138,41 @@
             "type": "number"
           }
         },
+        "title": "InterjectionPolicy",
+        "type": "object"
+      },
+      "InterjectionPolicy-Output": {
+        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.",
+        "properties": {
+          "cooldown_seconds": {
+            "default": 90,
+            "description": "Minimum gap between interjections.",
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Cooldown Seconds",
+            "type": "integer"
+          },
+          "max_per_meeting": {
+            "default": 8,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Per Meeting",
+            "type": "integer"
+          },
+          "min_confidence": {
+            "default": 0.7,
+            "description": "Below this, the interjection is discarded.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Confidence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min_confidence",
+          "cooldown_seconds",
+          "max_per_meeting"
+        ],
         "title": "InterjectionPolicy",
         "type": "object"
       },
@@ -1140,7 +1211,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "InterjectionProposedEvent",
@@ -1188,6 +1261,8 @@
           }
         },
         "required": [
+          "segment_ids",
+          "person_id",
           "quote"
         ],
         "title": "InterjectionTrigger",
@@ -1228,7 +1303,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "InterjectionUpdatedEvent",
@@ -1340,7 +1417,17 @@
         "required": [
           "id",
           "title",
-          "state"
+          "meeting_url",
+          "platform",
+          "state",
+          "agent_state",
+          "source",
+          "bot_id",
+          "roster",
+          "started_at",
+          "ended_at",
+          "stats",
+          "error"
         ],
         "title": "Meeting",
         "type": "object"
@@ -1470,7 +1557,8 @@
         },
         "required": [
           "state",
-          "agent_state"
+          "agent_state",
+          "error"
         ],
         "title": "MeetingStateChangedData",
         "type": "object"
@@ -1510,7 +1598,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "MeetingStateChangedEvent",
@@ -1553,6 +1643,14 @@
             "type": "integer"
           }
         },
+        "required": [
+          "utterance_count",
+          "interjection_count",
+          "duration_seconds",
+          "participant_count",
+          "wake_count",
+          "source_document_count"
+        ],
         "title": "MeetingStats",
         "type": "object"
       },
@@ -1591,7 +1689,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[CitedDocument]",
         "type": "object"
@@ -1618,7 +1717,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[Document]",
         "type": "object"
@@ -1645,7 +1745,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[Fixture]",
         "type": "object"
@@ -1672,7 +1773,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[Integration]",
         "type": "object"
@@ -1699,7 +1801,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[Interjection]",
         "type": "object"
@@ -1726,7 +1829,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[Meeting]",
         "type": "object"
@@ -1753,7 +1857,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[Person]",
         "type": "object"
@@ -1780,7 +1885,8 @@
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ],
         "title": "Page[TranscriptSegment]",
         "type": "object"
@@ -1832,7 +1938,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "ParticipantJoinedEvent",
@@ -1886,7 +1994,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "ParticipantLeftEvent",
@@ -1945,7 +2055,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "ParticipantSpeakingChangedEvent",
@@ -2069,7 +2181,13 @@
         },
         "required": [
           "display_name",
+          "aliases",
+          "role",
+          "org",
+          "email",
+          "bio",
           "id",
+          "voice_sample_url",
           "created_at",
           "updated_at"
         ],
@@ -2259,7 +2377,7 @@
         "title": "PersonaProviderName",
         "type": "string"
       },
-      "PersonaSettings": {
+      "PersonaSettings-Input": {
         "properties": {
           "character_id": {
             "anyOf": [
@@ -2281,6 +2399,36 @@
             "default": "concise_analyst"
           }
         },
+        "title": "PersonaSettings",
+        "type": "object"
+      },
+      "PersonaSettings-Output": {
+        "properties": {
+          "character_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Character Id"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PersonaProviderName",
+            "default": "characterai"
+          },
+          "tone": {
+            "$ref": "#/components/schemas/PersonaTone",
+            "default": "concise_analyst"
+          }
+        },
+        "required": [
+          "provider",
+          "character_id",
+          "tone"
+        ],
         "title": "PersonaSettings",
         "type": "object"
       },
@@ -2308,7 +2456,8 @@
           }
         },
         "required": [
-          "question"
+          "question",
+          "segment_ids"
         ],
         "title": "QuestionCapturedData",
         "type": "object"
@@ -2348,7 +2497,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "QuestionCapturedEvent",
@@ -2402,7 +2553,11 @@
         },
         "required": [
           "participant_id",
-          "display_name"
+          "person_id",
+          "display_name",
+          "is_host",
+          "matched",
+          "is_speaking"
         ],
         "title": "RosterEntry",
         "type": "object"
@@ -2440,16 +2595,16 @@
             "default": "auto_post"
           },
           "interjection": {
-            "$ref": "#/components/schemas/InterjectionPolicy"
+            "$ref": "#/components/schemas/InterjectionPolicy-Output"
           },
           "persona": {
-            "$ref": "#/components/schemas/PersonaSettings"
+            "$ref": "#/components/schemas/PersonaSettings-Output"
           },
           "triage": {
-            "$ref": "#/components/schemas/TriageSettings"
+            "$ref": "#/components/schemas/TriageSettings-Output"
           },
           "voice": {
-            "$ref": "#/components/schemas/VoiceSettings"
+            "$ref": "#/components/schemas/VoiceSettings-Output"
           },
           "wake_aliases": {
             "description": "Additional phrases that also wake Kindred. `Kindred` is kept so the agent still answers to its own name, and so existing fixtures keep working.",
@@ -2473,6 +2628,16 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "wake_word",
+          "wake_aliases",
+          "wake_word_enabled",
+          "autonomy",
+          "interjection",
+          "voice",
+          "persona",
+          "triage"
+        ],
         "title": "Settings",
         "type": "object"
       },
@@ -2492,7 +2657,7 @@
           "interjection": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/InterjectionPolicy"
+                "$ref": "#/components/schemas/InterjectionPolicy-Input"
               },
               {
                 "type": "null"
@@ -2502,7 +2667,7 @@
           "persona": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PersonaSettings"
+                "$ref": "#/components/schemas/PersonaSettings-Input"
               },
               {
                 "type": "null"
@@ -2512,7 +2677,7 @@
           "triage": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TriageSettings"
+                "$ref": "#/components/schemas/TriageSettings-Input"
               },
               {
                 "type": "null"
@@ -2522,7 +2687,7 @@
           "voice": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/VoiceSettings"
+                "$ref": "#/components/schemas/VoiceSettings-Input"
               },
               {
                 "type": "null"
@@ -2601,6 +2766,11 @@
             "type": "array"
           }
         },
+        "required": [
+          "meeting",
+          "recent_segments",
+          "interjections"
+        ],
         "title": "SnapshotData",
         "type": "object"
       },
@@ -2639,7 +2809,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "SnapshotEvent",
@@ -2683,6 +2855,7 @@
         "required": [
           "interjection_id",
           "chunk_id",
+          "page",
           "quote",
           "relevance"
         ],
@@ -2780,7 +2953,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "TranscriptFinalEvent",
@@ -2821,7 +2996,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "TranscriptPartialEvent",
@@ -2924,11 +3101,13 @@
           "id",
           "meeting_id",
           "participant_id",
+          "person_id",
           "speaker_name",
           "text",
           "is_final",
           "start_ms",
-          "end_ms"
+          "end_ms",
+          "confidence"
         ],
         "title": "TranscriptSegment",
         "type": "object"
@@ -2942,13 +3121,26 @@
         "title": "TriageProviderName",
         "type": "string"
       },
-      "TriageSettings": {
+      "TriageSettings-Input": {
         "properties": {
           "provider": {
             "$ref": "#/components/schemas/TriageProviderName",
             "default": "heuristic"
           }
         },
+        "title": "TriageSettings",
+        "type": "object"
+      },
+      "TriageSettings-Output": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/TriageProviderName",
+            "default": "heuristic"
+          }
+        },
+        "required": [
+          "provider"
+        ],
         "title": "TriageSettings",
         "type": "object"
       },
@@ -3048,7 +3240,14 @@
           "id",
           "meeting_id",
           "text",
-          "created_at"
+          "requested_text",
+          "clip_id",
+          "placeholder",
+          "duration_ms",
+          "status",
+          "error",
+          "created_at",
+          "played_at"
         ],
         "title": "Utterance",
         "type": "object"
@@ -3073,7 +3272,7 @@
         "title": "VoiceProviderName",
         "type": "string"
       },
-      "VoiceSettings": {
+      "VoiceSettings-Input": {
         "properties": {
           "provider": {
             "$ref": "#/components/schemas/VoiceProviderName",
@@ -3099,6 +3298,40 @@
             "title": "Voice Id"
           }
         },
+        "title": "VoiceSettings",
+        "type": "object"
+      },
+      "VoiceSettings-Output": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/VoiceProviderName",
+            "default": "inworld"
+          },
+          "speaking_rate": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Speaking Rate",
+            "type": "number"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "kindred_v1",
+            "title": "Voice Id"
+          }
+        },
+        "required": [
+          "provider",
+          "voice_id",
+          "speaking_rate"
+        ],
         "title": "VoiceSettings",
         "type": "object"
       },
@@ -3134,6 +3367,7 @@
         },
         "required": [
           "participant_id",
+          "person_id",
           "segment_id",
           "matched_text"
         ],
@@ -3175,7 +3409,9 @@
         },
         "required": [
           "seq",
+          "meeting_id",
           "ts",
+          "type",
           "data"
         ],
         "title": "WakeDetectedEvent",

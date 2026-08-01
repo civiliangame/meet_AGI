@@ -129,9 +129,16 @@ class MuteRequest(Schema):
 
 
 class SourceQuote(Schema):
-    """One passage Kindred cited, and which interjection used it."""
+    """One passage Kindred cited, and every claim that leaned on it.
 
-    interjection_id: str
+    Deduplicated by passage rather than listed per citation: two claims citing the same
+    line of a deck is one piece of evidence used twice, and rendering the identical
+    quote twice on an audit screen reads as a bug. `interjection_ids` carries both.
+    """
+
+    interjection_ids: list[str] = Field(
+        default_factory=list, description="Every claim that cited this passage."
+    )
     chunk_id: str
     page: int | None = Field(default=None, description="1-indexed. Null for non-paginated sources.")
     quote: str = Field(description="The retrieved span, verbatim. Render as-is — it is the evidence.")

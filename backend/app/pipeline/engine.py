@@ -29,8 +29,10 @@ import contextlib
 import logging
 import time
 
+from ..audio import AudioClip
 from ..bus import bus
 from ..chat import chat_router
+from ..speech.fillers import SAMPLE_FILLER_CLIP_ID as FILLER_FALLBACK_CLIP_ID
 from ..schemas import (
     AgentState,
     AgentStateChangedData,
@@ -200,6 +202,13 @@ class PipelineEngine:
         )
         self._set_agent_state(meeting_id, AgentState.THINKING, "searching the documents")
 
+        # Say something *before* reasoning, not after. Retrieval plus generation is a
+        # couple of seconds, and to the person who just asked out loud, silence reads as
+        # "it didn't hear me". The filler is pre-rendered, so queueing it costs nothing,
+        # and because playback is serialized per meeting the real answer automatically
+        # waits for it to finish rather than talking over it.
+        await self._say_filler(meeting_id)
+
         transcript = self.memory.for_meeting(meeting_id).render(exclude_segment_id=segment.id)
         answer = await reason.answer_question(
             question=question, asker=segment.speaker_name, transcript=transcript
@@ -297,8 +306,33 @@ class PipelineEngine:
     async def _say_clip(self, meeting_id: str, clip_id: str) -> None:
         await self._say(meeting_id, clip_id=clip_id)
 
+    async def _say_filler(self, meeting_id: str) -> None:
+        """Queue a cached "let me look that up" line, in Kindred's own voice.
+
+        Falls back to the sample provider's `checking` clip, which says much the same
+        thing — so this works whether or not real TTS is configured, and a filler that
+        cannot be produced is never allowed to hold up the answer behind it.
+        """
+        from ..runtime import get_runtime
+
+        try:
+            clip = await get_runtime().fillers.next_clip()
+        except Exception:
+            logger.exception("filler synthesis failed in %s", meeting_id)
+            clip = None
+
+        if clip is None:
+            await self._say_clip(meeting_id, FILLER_FALLBACK_CLIP_ID)
+        else:
+            await self._say(meeting_id, clip=clip)
+
     async def _say(
-        self, meeting_id: str, *, text: str | None = None, clip_id: str | None = None
+        self,
+        meeting_id: str,
+        *,
+        text: str | None = None,
+        clip_id: str | None = None,
+        clip: AudioClip | None = None,
     ) -> None:
         """Speak, tolerating a meeting with no audio channel.
 
@@ -312,7 +346,7 @@ class PipelineEngine:
             runtime = get_runtime()
             if not runtime.speech.is_attached(meeting_id):
                 runtime.attach_dry_run(meeting_id, label=meeting_id)
-            await runtime.speech.say(meeting_id, text, clip_id=clip_id)
+            await runtime.speech.say(meeting_id, text, clip_id=clip_id, clip=clip)
         except Exception:
             log.exception("could not speak in %s", meeting_id)
             self._set_agent_state(meeting_id, AgentState.IDLE)

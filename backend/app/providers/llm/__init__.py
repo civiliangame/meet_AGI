@@ -21,23 +21,40 @@ def get_llm_provider() -> LLMProvider | None:
     from ...config import get_config
 
     config = get_config()
-    if not config.anthropic_api_key:
-        return None
+    resolved = config.resolved_llm_provider
 
-    try:
-        from .claude import ClaudeProvider
-    except ImportError:
-        logger.warning(
-            "ANTHROPIC_API_KEY is set but the `anthropic` package is not installed. "
-            "Run `pip install -e .` in backend/."
+    if resolved == "gemini":
+        if not config.gemini_api_key:
+            logger.warning("llm_provider is `gemini` but GEMINI_API_KEY is unset")
+            return None
+        from .gemini import GeminiProvider
+
+        return GeminiProvider(
+            api_key=config.gemini_api_key,
+            model=config.gemini_model,
+            fast_model=config.gemini_fast_model,
         )
-        return None
 
-    return ClaudeProvider(
-        api_key=config.anthropic_api_key,
-        model=config.anthropic_model,
-        fast_model=config.anthropic_fast_model,
-    )
+    if resolved == "claude":
+        if not config.anthropic_api_key:
+            logger.warning("llm_provider is `claude` but ANTHROPIC_API_KEY is unset")
+            return None
+        try:
+            from .claude import ClaudeProvider
+        except ImportError:
+            logger.warning(
+                "ANTHROPIC_API_KEY is set but the `anthropic` package is not installed. "
+                "Run `pip install -e .` in backend/."
+            )
+            return None
+
+        return ClaudeProvider(
+            api_key=config.anthropic_api_key,
+            model=config.anthropic_model,
+            fast_model=config.anthropic_fast_model,
+        )
+
+    return None
 
 
 async def shutdown_llm_provider() -> None:

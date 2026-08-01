@@ -761,13 +761,13 @@ export interface components {
              * Detail
              * @description Optional human-readable reason, e.g. 'retrieving documents'.
              */
-            detail?: string | null;
+            detail: string | null;
         };
         /** AgentStateChangedEvent */
         AgentStateChangedEvent: {
             data: components["schemas"]["AgentStateChangedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -793,7 +793,7 @@ export interface components {
         AnsweredEvent: {
             data: components["schemas"]["AnsweredData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -874,7 +874,7 @@ export interface components {
              * Page
              * @description 1-indexed. Null for non-paginated sources.
              */
-            page?: number | null;
+            page: number | null;
             /**
              * Quote
              * @example New Product Line: $1.42M (-12.1% MoM)
@@ -906,9 +906,9 @@ export interface components {
             /** Filename */
             filename: string;
             /** Interjection Ids */
-            interjection_ids?: string[];
+            interjection_ids: string[];
             /** Quotes */
-            quotes?: components["schemas"]["SourceQuote"][];
+            quotes: components["schemas"]["SourceQuote"][];
         };
         /** ClarificationAskedData */
         ClarificationAskedData: {
@@ -919,7 +919,7 @@ export interface components {
         ClarificationAskedEvent: {
             data: components["schemas"]["ClarificationAskedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -979,7 +979,7 @@ export interface components {
              * Error
              * @description Populated only when `status` is `failed`.
              */
-            error?: string | null;
+            error: string | null;
             /**
              * Filename
              * @example Q3-board-deck.pdf
@@ -1011,7 +1011,7 @@ export interface components {
              *       "q3"
              *     ]
              */
-            tags?: string[];
+            tags: string[];
         };
         /**
          * DocumentSource
@@ -1027,7 +1027,7 @@ export interface components {
         DocumentStatusChangedEvent: {
             data: components["schemas"]["Document"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1067,7 +1067,7 @@ export interface components {
              * Detail
              * @description Optional structured context, e.g. field validation errors.
              */
-            detail?: {
+            detail: {
                 [key: string]: unknown;
             } | null;
             /**
@@ -1080,7 +1080,7 @@ export interface components {
         ErrorEvent: {
             data: components["schemas"]["ErrorData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1176,11 +1176,11 @@ export interface components {
              * @description What account this is connected as. Display-only.
              * @example acme.slack.com
              */
-            account_label?: string | null;
+            account_label: string | null;
             /** Capabilities */
-            capabilities?: components["schemas"]["IntegrationCapability"][];
+            capabilities: components["schemas"]["IntegrationCapability"][];
             /** Connected At */
-            connected_at?: string | null;
+            connected_at: string | null;
             /**
              * Display Name
              * @example Slack
@@ -1190,7 +1190,7 @@ export interface components {
              * Error
              * @description Populated only when `status` is `error`.
              */
-            error?: string | null;
+            error: string | null;
             /**
              * Is Stub
              * @description True when the connection is simulated. Drives the 'Demo' badge.
@@ -1229,7 +1229,7 @@ export interface components {
              */
             chat_alert: string;
             /** Citations */
-            citations?: components["schemas"]["Citation"][];
+            citations: components["schemas"]["Citation"][];
             /**
              * Confidence
              * @example 0.82
@@ -1241,7 +1241,7 @@ export interface components {
              */
             created_at: string;
             /** Error */
-            error?: string | null;
+            error: string | null;
             /**
              * Headline
              * @example Sarah's revenue claim conflicts with the Q3 board deck
@@ -1256,7 +1256,7 @@ export interface components {
             /** Meeting Id */
             meeting_id: string;
             /** Posted At */
-            posted_at?: string | null;
+            posted_at: string | null;
             /**
              * Spoken
              * @description True when Kindred said this out loud rather than only in chat.
@@ -1292,7 +1292,34 @@ export interface components {
          *     the difference between "helpful" and "muted by the host in minute two", and they
          *     are exposed in the UI so they can be tuned live during a meeting.
          */
-        InterjectionPolicy: {
+        "InterjectionPolicy-Input": {
+            /**
+             * Cooldown Seconds
+             * @description Minimum gap between interjections.
+             * @default 90
+             */
+            cooldown_seconds: number;
+            /**
+             * Max Per Meeting
+             * @default 8
+             */
+            max_per_meeting: number;
+            /**
+             * Min Confidence
+             * @description Below this, the interjection is discarded.
+             * @default 0.7
+             */
+            min_confidence: number;
+        };
+        /**
+         * InterjectionPolicy
+         * @description Rate limiting is a feature, not an optimization.
+         *
+         *     A copilot that will not shut up is worse than no copilot. These three knobs are
+         *     the difference between "helpful" and "muted by the host in minute two", and they
+         *     are exposed in the UI so they can be tuned live during a meeting.
+         */
+        "InterjectionPolicy-Output": {
             /**
              * Cooldown Seconds
              * @description Minimum gap between interjections.
@@ -1315,7 +1342,7 @@ export interface components {
         InterjectionProposedEvent: {
             data: components["schemas"]["Interjection"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1343,7 +1370,7 @@ export interface components {
          */
         InterjectionTrigger: {
             /** Person Id */
-            person_id?: string | null;
+            person_id: string | null;
             /**
              * Quote
              * @description The utterance that triggered this, verbatim. Rendered on the card.
@@ -1351,13 +1378,13 @@ export interface components {
              */
             quote: string;
             /** Segment Ids */
-            segment_ids?: string[];
+            segment_ids: string[];
         };
         /** InterjectionUpdatedEvent */
         InterjectionUpdatedEvent: {
             data: components["schemas"]["Interjection"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1382,11 +1409,11 @@ export interface components {
              * Bot Id
              * @description Recall.ai bot id. Null when `source` is `harness`.
              */
-            bot_id?: string | null;
+            bot_id: string | null;
             /** Ended At */
-            ended_at?: string | null;
+            ended_at: string | null;
             /** Error */
-            error?: string | null;
+            error: string | null;
             /**
              * Id
              * @example mtg_01J8XM6N7P8Q9R0S1T2U3V
@@ -1396,17 +1423,17 @@ export interface components {
              * Meeting Url
              * @example https://meet.google.com/abc-defg-hij
              */
-            meeting_url?: string | null;
+            meeting_url: string | null;
             /** @default google_meet */
             platform: components["schemas"]["MeetingPlatform"];
             /** Roster */
-            roster?: components["schemas"]["RosterEntry"][];
+            roster: components["schemas"]["RosterEntry"][];
             /** @default recall */
             source: components["schemas"]["MeetingSource"];
             /** Started At */
-            started_at?: string | null;
+            started_at: string | null;
             state: components["schemas"]["MeetingState"];
-            stats?: components["schemas"]["MeetingStats"];
+            stats: components["schemas"]["MeetingStats"];
             /**
              * Title
              * @example Q3 Revenue Review
@@ -1467,14 +1494,14 @@ export interface components {
         MeetingStateChangedData: {
             agent_state: components["schemas"]["AgentState"];
             /** Error */
-            error?: string | null;
+            error: string | null;
             state: components["schemas"]["MeetingState"];
         };
         /** MeetingStateChangedEvent */
         MeetingStateChangedEvent: {
             data: components["schemas"]["MeetingStateChangedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1540,56 +1567,56 @@ export interface components {
             /** Items */
             items: components["schemas"]["CitedDocument"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[Document] */
         Page_Document_: {
             /** Items */
             items: components["schemas"]["Document"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[Fixture] */
         Page_Fixture_: {
             /** Items */
             items: components["schemas"]["Fixture"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[Integration] */
         Page_Integration_: {
             /** Items */
             items: components["schemas"]["Integration"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[Interjection] */
         Page_Interjection_: {
             /** Items */
             items: components["schemas"]["Interjection"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[Meeting] */
         Page_Meeting_: {
             /** Items */
             items: components["schemas"]["Meeting"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[Person] */
         Page_Person_: {
             /** Items */
             items: components["schemas"]["Person"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** Page[TranscriptSegment] */
         Page_TranscriptSegment_: {
             /** Items */
             items: components["schemas"]["TranscriptSegment"][];
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
         };
         /** ParticipantJoinedData */
         ParticipantJoinedData: {
@@ -1599,7 +1626,7 @@ export interface components {
         ParticipantJoinedEvent: {
             data: components["schemas"]["ParticipantJoinedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1625,7 +1652,7 @@ export interface components {
         ParticipantLeftEvent: {
             data: components["schemas"]["ParticipantLeftData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1653,7 +1680,7 @@ export interface components {
         ParticipantSpeakingChangedEvent: {
             data: components["schemas"]["ParticipantSpeakingChangedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1680,13 +1707,13 @@ export interface components {
              *       "S. Chen"
              *     ]
              */
-            aliases?: string[];
+            aliases: string[];
             /**
              * Bio
              * @description Free text. Passed to the reasoning model as speaker context.
              * @example Owns the quarterly revenue model. Presents the board deck.
              */
-            bio?: string | null;
+            bio: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1701,7 +1728,7 @@ export interface components {
              * Email
              * @example sarah@acme.com
              */
-            email?: string | null;
+            email: string | null;
             /**
              * Id
              * @example prs_01J8XK2M3N4P5Q6R7S8T9V
@@ -1711,12 +1738,12 @@ export interface components {
              * Org
              * @example Acme Corp
              */
-            org?: string | null;
+            org: string | null;
             /**
              * Role
              * @example VP Finance
              */
-            role?: string | null;
+            role: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -1726,7 +1753,7 @@ export interface components {
              * Voice Sample Url
              * @description Set once a voice sample is uploaded. Reserved for voice-print matching.
              */
-            voice_sample_url?: string | null;
+            voice_sample_url: string | null;
         };
         /** PersonCreate */
         PersonCreate: {
@@ -1790,9 +1817,18 @@ export interface components {
          */
         PersonaProviderName: "characterai" | "claude";
         /** PersonaSettings */
-        PersonaSettings: {
+        "PersonaSettings-Input": {
             /** Character Id */
             character_id?: string | null;
+            /** @default characterai */
+            provider: components["schemas"]["PersonaProviderName"];
+            /** @default concise_analyst */
+            tone: components["schemas"]["PersonaTone"];
+        };
+        /** PersonaSettings */
+        "PersonaSettings-Output": {
+            /** Character Id */
+            character_id: string | null;
             /** @default characterai */
             provider: components["schemas"]["PersonaProviderName"];
             /** @default concise_analyst */
@@ -1808,13 +1844,13 @@ export interface components {
             /** Question */
             question: string;
             /** Segment Ids */
-            segment_ids?: string[];
+            segment_ids: string[];
         };
         /** QuestionCapturedEvent */
         QuestionCapturedEvent: {
             data: components["schemas"]["QuestionCapturedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1864,7 +1900,7 @@ export interface components {
              * Person Id
              * @description Resolved Person, or null when unmatched.
              */
-            person_id?: string | null;
+            person_id: string | null;
         };
         /** SampleClip */
         SampleClip: {
@@ -1882,15 +1918,15 @@ export interface components {
         Settings: {
             /** @default auto_post */
             autonomy: components["schemas"]["Autonomy"];
-            interjection?: components["schemas"]["InterjectionPolicy"];
-            persona?: components["schemas"]["PersonaSettings"];
-            triage?: components["schemas"]["TriageSettings"];
-            voice?: components["schemas"]["VoiceSettings"];
+            interjection: components["schemas"]["InterjectionPolicy-Output"];
+            persona: components["schemas"]["PersonaSettings-Output"];
+            triage: components["schemas"]["TriageSettings-Output"];
+            voice: components["schemas"]["VoiceSettings-Output"];
             /**
              * Wake Aliases
              * @description Additional phrases that also wake Kindred. `Kindred` is kept so the agent still answers to its own name, and so existing fixtures keep working.
              */
-            wake_aliases?: string[];
+            wake_aliases: string[];
             /**
              * Wake Word
              * @description Spoken phrase that puts Kindred into speech mode. Matched against finalized transcript only, case- and punctuation-insensitively, with STT homophones (`hey a g i`, `hey aji`) generated automatically.
@@ -1909,10 +1945,10 @@ export interface components {
          */
         SettingsUpdate: {
             autonomy?: components["schemas"]["Autonomy"] | null;
-            interjection?: components["schemas"]["InterjectionPolicy"] | null;
-            persona?: components["schemas"]["PersonaSettings"] | null;
-            triage?: components["schemas"]["TriageSettings"] | null;
-            voice?: components["schemas"]["VoiceSettings"] | null;
+            interjection?: components["schemas"]["InterjectionPolicy-Input"] | null;
+            persona?: components["schemas"]["PersonaSettings-Input"] | null;
+            triage?: components["schemas"]["TriageSettings-Input"] | null;
+            voice?: components["schemas"]["VoiceSettings-Input"] | null;
             /** Wake Aliases */
             wake_aliases?: string[] | null;
             /** Wake Word */
@@ -1926,20 +1962,20 @@ export interface components {
          */
         SnapshotData: {
             /** Interjections */
-            interjections?: components["schemas"]["Interjection"][];
+            interjections: components["schemas"]["Interjection"][];
             /** @description Null on the global stream when no meeting is active. */
-            meeting?: components["schemas"]["Meeting"] | null;
+            meeting: components["schemas"]["Meeting"] | null;
             /**
              * Recent Segments
              * @description Trailing transcript window, oldest first.
              */
-            recent_segments?: components["schemas"]["TranscriptSegment"][];
+            recent_segments: components["schemas"]["TranscriptSegment"][];
         };
         /** SnapshotEvent */
         SnapshotEvent: {
             data: components["schemas"]["SnapshotData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -1969,7 +2005,7 @@ export interface components {
              * Page
              * @description 1-indexed. Null for non-paginated sources.
              */
-            page?: number | null;
+            page: number | null;
             /**
              * Quote
              * @description The retrieved span, verbatim. Render as-is — it is the evidence.
@@ -2017,7 +2053,7 @@ export interface components {
         TranscriptFinalEvent: {
             data: components["schemas"]["TranscriptSegment"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -2038,7 +2074,7 @@ export interface components {
         TranscriptPartialEvent: {
             data: components["schemas"]["TranscriptSegment"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
@@ -2061,7 +2097,7 @@ export interface components {
              * Confidence
              * @example 0.94
              */
-            confidence?: number | null;
+            confidence: number | null;
             /**
              * End Ms
              * @example 158900
@@ -2093,7 +2129,7 @@ export interface components {
              * @description Resolved Person, or null when the speaker could not be matched.
              * @example prs_01J8XK2M3N4P5Q6R7S8T9V
              */
-            person_id?: string | null;
+            person_id: string | null;
             /**
              * Speaker Name
              * @description Best available name: the matched Person, else the platform display name.
@@ -2118,7 +2154,12 @@ export interface components {
          */
         TriageProviderName: "tenstorrent" | "claude" | "heuristic";
         /** TriageSettings */
-        TriageSettings: {
+        "TriageSettings-Input": {
+            /** @default heuristic */
+            provider: components["schemas"]["TriageProviderName"];
+        };
+        /** TriageSettings */
+        "TriageSettings-Output": {
             /** @default heuristic */
             provider: components["schemas"]["TriageProviderName"];
         };
@@ -2129,7 +2170,7 @@ export interface components {
              * @description Set when the audio came from a fixed sample clip rather than TTS.
              * @example flag_revenue
              */
-            clip_id?: string | null;
+            clip_id: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2141,7 +2182,7 @@ export interface components {
              */
             duration_ms: number;
             /** Error */
-            error?: string | null;
+            error: string | null;
             /**
              * Id
              * @example utt_01J8XP6N7P8Q9R0S1T2U3V
@@ -2156,12 +2197,12 @@ export interface components {
              */
             placeholder: boolean;
             /** Played At */
-            played_at?: string | null;
+            played_at: string | null;
             /**
              * Requested Text
              * @description What the caller asked Kindred to say, when that differs from `text`. Non-null only while the voice provider is a placeholder.
              */
-            requested_text?: string | null;
+            requested_text: string | null;
             /** @default queued */
             status: components["schemas"]["UtteranceStatus"];
             /**
@@ -2182,7 +2223,22 @@ export interface components {
          */
         VoiceProviderName: "inworld" | "elevenlabs" | "system";
         /** VoiceSettings */
-        VoiceSettings: {
+        "VoiceSettings-Input": {
+            /** @default inworld */
+            provider: components["schemas"]["VoiceProviderName"];
+            /**
+             * Speaking Rate
+             * @default 1
+             */
+            speaking_rate: number;
+            /**
+             * Voice Id
+             * @default kindred_v1
+             */
+            voice_id: string | null;
+        };
+        /** VoiceSettings */
+        "VoiceSettings-Output": {
             /** @default inworld */
             provider: components["schemas"]["VoiceProviderName"];
             /**
@@ -2207,7 +2263,7 @@ export interface components {
             /** Participant Id */
             participant_id: string;
             /** Person Id */
-            person_id?: string | null;
+            person_id: string | null;
             /** Segment Id */
             segment_id: string;
         };
@@ -2215,7 +2271,7 @@ export interface components {
         WakeDetectedEvent: {
             data: components["schemas"]["WakeDetectedData"];
             /** Meeting Id */
-            meeting_id?: string | null;
+            meeting_id: string | null;
             /**
              * Seq
              * @description Monotonic per connection. A gap means dropped frames.
