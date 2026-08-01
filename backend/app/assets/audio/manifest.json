@@ -1,0 +1,34 @@
+{
+  "clips": [
+    {
+      "id": "greeting",
+      "file": "greeting.mp3",
+      "text": "Kindred is here and listening. I'll flag anything that conflicts with your documents."
+    },
+    {
+      "id": "flag_revenue",
+      "file": "flag_revenue.mp3",
+      "text": "Quick flag. That revenue number conflicts with the Q3 board deck, page fourteen."
+    },
+    {
+      "id": "checking",
+      "file": "checking.mp3",
+      "text": "Good question. Give me a second while I check the documents."
+    },
+    {
+      "id": "no_context",
+      "file": "no_context.mp3",
+      "text": "I don't have anything on that in the context you've given me."
+    },
+    {
+      "id": "confirms",
+      "file": "confirms.mp3",
+      "text": "That one checks out. It matches the board deck."
+    },
+    {
+      "id": "clarify",
+      "file": "clarify.mp3",
+      "text": "Do you mean net revenue or gross revenue? Those tell different stories here."
+    }
+  ]
+}
