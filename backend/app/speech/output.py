@@ -32,7 +32,7 @@ from ..audio import AudioClip, AudioSink
 from ..bus import EventBus
 from ..bus import bus as default_bus
 from ..ids import PREFIX_UTTERANCE, new_id
-from ..providers.voice import VoiceError, VoiceProvider
+from ..providers.voice import VoiceError, VoiceProvider, get_sample_clips
 from ..schemas import AgentState, AgentStateChangedData, utcnow
 from ..schemas.speech import Utterance, UtteranceStatus
 from ..store import Store
@@ -123,9 +123,8 @@ class SpeechOutput:
             channel.worker.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await channel.worker
-        dropped = self._drain(channel, reason="meeting ended")
-        if dropped:
-            logger.info("dropped %d queued utterance(s) for %s", dropped, meeting_id)
+        if dropped := self._drain(channel, reason="meeting ended"):
+            logger.info("dropped %d queued utterance(s) for %s", len(dropped), meeting_id)
 
     def is_attached(self, meeting_id: str) -> bool:
         return meeting_id in self._channels
@@ -177,8 +176,8 @@ class SpeechOutput:
         clip = self._random_clip()
         return await self.say(meeting_id, clip_id=clip.clip_id)
 
-    def clear(self, meeting_id: str) -> int:
-        """Drop everything queued but not yet playing. Returns how many were dropped.
+    def clear(self, meeting_id: str) -> list[Utterance]:
+        """Drop everything queued but not yet playing. Returns what was dropped.
 
         Barge-in, as far as this endpoint allows: audio already handed to Recall cannot
         be recalled, so the clip currently playing finishes. Streaming Output Media is
@@ -186,7 +185,7 @@ class SpeechOutput:
         """
         channel = self._channels.get(meeting_id)
         if channel is None:
-            return 0
+            return []
         return self._drain(channel, reason="interrupted")
 
     async def wait_until_idle(self, meeting_id: str, timeout: float | None = None) -> None:
@@ -246,7 +245,7 @@ class SpeechOutput:
 
         try:
             await channel.sink.wait_ready(timeout=channel.ready_timeout)
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             self._fail(
                 utterance,
                 f"the meeting never became available within {channel.ready_timeout:.0f}s",
@@ -269,14 +268,14 @@ class SpeechOutput:
         self._set_agent_state(meeting_id, AgentState.IDLE)
 
     async def _resolve(self, utterance: Utterance) -> AudioClip:
-        """Turn an utterance into playable audio."""
+        """Turn an utterance into playable audio.
+
+        A `clip_id` always resolves against the sample assets, even with real TTS
+        active — fixed clips are how the demo stays recoverable when the TTS provider is
+        slow or down.
+        """
         if utterance.clip_id:
-            clip_loader = getattr(self._voice, "clip", None)
-            if clip_loader is None:
-                raise VoiceError(
-                    f"voice provider {self._voice.name!r} has no fixed clips; "
-                    f"cannot play clip_id={utterance.clip_id!r}"
-                )
+            clip_loader = getattr(self._voice, "clip", None) or get_sample_clips().clip
             return clip_loader(utterance.clip_id)
 
         settings = self._store.settings.voice
@@ -287,9 +286,7 @@ class SpeechOutput:
         )
 
     def _random_clip(self) -> AudioClip:
-        picker = getattr(self._voice, "random_clip", None)
-        if picker is None:
-            raise VoiceError(f"voice provider {self._voice.name!r} has no sample clips")
+        picker = getattr(self._voice, "random_clip", None) or get_sample_clips().random_clip
         return picker()
 
     # --- state and bookkeeping ----------------------------------------------------
@@ -326,8 +323,8 @@ class SpeechOutput:
         utterance.status = status
         utterance.error = error
 
-    def _drain(self, channel: _Channel, *, reason: str) -> int:
-        dropped = 0
+    def _drain(self, channel: _Channel, *, reason: str) -> list[Utterance]:
+        dropped: list[Utterance] = []
         while True:
             try:
                 utterance = channel.queue.get_nowait()
@@ -335,7 +332,7 @@ class SpeechOutput:
                 break
             self._fail(utterance, reason, status=UtteranceStatus.DROPPED)
             channel.queue.task_done()
-            dropped += 1
+            dropped.append(utterance)
         return dropped
 
     @staticmethod

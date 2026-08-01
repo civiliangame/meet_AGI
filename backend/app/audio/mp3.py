@@ -53,7 +53,8 @@ def _frame(data: bytes, index: int) -> tuple[int, int, int] | None:
     """Parse a frame header at `index` → (frame_length, samples, sample_rate)."""
     if index + 4 > len(data):
         return None
-    b1, b2, b3 = data[index + 1], data[index + 2], data[index + 3]
+    # Byte 3 holds channel mode and emphasis, neither of which affects duration.
+    b1, b2 = data[index + 1], data[index + 2]
     if data[index] != 0xFF or (b1 & 0xE0) != 0xE0:
         return None
 

@@ -1,0 +1,6143 @@
+{
+  "components": {
+    "schemas": {
+      "Ack": {
+        "description": "Generic success envelope for endpoints with nothing meaningful to return.",
+        "properties": {
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "title": "Ack",
+        "type": "object"
+      },
+      "AgentState": {
+        "enum": [
+          "idle",
+          "listening",
+          "thinking",
+          "speaking",
+          "muted"
+        ],
+        "title": "AgentState",
+        "type": "string"
+      },
+      "AgentStateChangedData": {
+        "properties": {
+          "agent_state": {
+            "$ref": "#/components/schemas/AgentState"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional human-readable reason, e.g. 'retrieving documents'.",
+            "title": "Detail"
+          }
+        },
+        "required": [
+          "agent_state"
+        ],
+        "title": "AgentStateChangedData",
+        "type": "object"
+      },
+      "AgentStateChangedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentStateChangedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "agent.state_changed",
+            "default": "agent.state_changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "AgentStateChangedEvent",
+        "type": "object"
+      },
+      "AnsweredData": {
+        "properties": {
+          "interjection_id": {
+            "title": "Interjection Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "interjection_id"
+        ],
+        "title": "AnsweredData",
+        "type": "object"
+      },
+      "AnsweredEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnsweredData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "speech.answered",
+            "default": "speech.answered",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "AnsweredEvent",
+        "type": "object"
+      },
+      "AskRequest": {
+        "description": "Type a question straight to Kindred from the dashboard.\n\nThis is the most valuable demo-recovery tool in the API. If wake-word detection\nmisfires on stage, type the question and Kindred still answers out loud.",
+        "properties": {
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "speak": {
+            "default": false,
+            "description": "Also say the answer into the meeting.",
+            "title": "Speak",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "type": "object"
+      },
+      "Autonomy": {
+        "enum": [
+          "silent",
+          "propose",
+          "auto_post"
+        ],
+        "title": "Autonomy",
+        "type": "string"
+      },
+      "Body_upload_documents_api_documents_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_documents_api_documents_post",
+        "type": "object"
+      },
+      "Body_upload_voice_sample_api_people__person_id__voice_sample_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_voice_sample_api_people__person_id__voice_sample_post",
+        "type": "object"
+      },
+      "Citation": {
+        "description": "A pointer into a document, attached to an interjection.\n\n`quote` is the exact retrieved span. The frontend should render it verbatim \u2014\nit is the evidence, and paraphrasing it would undercut the whole feature.",
+        "properties": {
+          "chunk_id": {
+            "examples": [
+              "chk_01J8XK5B6C7D8E9F0G1H2J"
+            ],
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "document_id": {
+            "examples": [
+              "doc_01J8XK4A5B6C7D8E9F0G1H"
+            ],
+            "title": "Document Id",
+            "type": "string"
+          },
+          "filename": {
+            "examples": [
+              "Q3-board-deck.pdf"
+            ],
+            "title": "Filename",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-indexed. Null for non-paginated sources.",
+            "title": "Page"
+          },
+          "quote": {
+            "examples": [
+              "New Product Line: $1.42M (-12.1% MoM)"
+            ],
+            "title": "Quote",
+            "type": "string"
+          },
+          "relevance": {
+            "examples": [
+              0.91
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance",
+            "type": "number"
+          }
+        },
+        "required": [
+          "document_id",
+          "filename",
+          "chunk_id",
+          "quote",
+          "relevance"
+        ],
+        "title": "Citation",
+        "type": "object"
+      },
+      "ClarificationAskedData": {
+        "properties": {
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "ClarificationAskedData",
+        "type": "object"
+      },
+      "ClarificationAskedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClarificationAskedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "speech.clarification_asked",
+            "default": "speech.clarification_asked",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "ClarificationAskedEvent",
+        "type": "object"
+      },
+      "ClientMessage": {
+        "description": "The only thing the client may send.\n\nAll mutations go over REST. Keeping the socket server-to-client only means one\nwrite path and no dual-write reconciliation bugs.",
+        "properties": {
+          "type": {
+            "const": "ping",
+            "default": "ping",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "ClientMessage",
+        "type": "object"
+      },
+      "ClipList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SampleClip"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "provider": {
+            "description": "Active voice provider.",
+            "examples": [
+              "sample"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "items"
+        ],
+        "title": "ClipList",
+        "type": "object"
+      },
+      "Document": {
+        "properties": {
+          "chunk_count": {
+            "default": 0,
+            "description": "Retrievable chunks. Zero until `status` is `ready`.",
+            "minimum": 0.0,
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Populated only when `status` is `failed`.",
+            "title": "Error"
+          },
+          "filename": {
+            "examples": [
+              "Q3-board-deck.pdf"
+            ],
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "doc_01J8XK4A5B6C7D8E9F0G1H"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "mime_type": {
+            "examples": [
+              "application/pdf"
+            ],
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "size_bytes": {
+            "examples": [
+              284119
+            ],
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DocumentSource",
+            "default": "upload"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus",
+            "default": "pending"
+          },
+          "tags": {
+            "examples": [
+              [
+                "finance",
+                "q3"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "mime_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "title": "Document",
+        "type": "object"
+      },
+      "DocumentSource": {
+        "enum": [
+          "upload",
+          "slack",
+          "gmail",
+          "gdrive",
+          "notion"
+        ],
+        "title": "DocumentSource",
+        "type": "string"
+      },
+      "DocumentStatus": {
+        "enum": [
+          "pending",
+          "parsing",
+          "embedding",
+          "ready",
+          "failed"
+        ],
+        "title": "DocumentStatus",
+        "type": "string"
+      },
+      "DocumentStatusChangedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "document.status_changed",
+            "default": "document.status_changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "DocumentStatusChangedEvent",
+        "type": "object"
+      },
+      "DocumentUpdate": {
+        "properties": {
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "DocumentUpdate",
+        "type": "object"
+      },
+      "ErrorData": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorData",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "description": "Stable machine-readable code, e.g. `not_found`.",
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional structured context, e.g. field validation errors.",
+            "title": "Detail"
+          },
+          "message": {
+            "description": "Human-readable message. Safe to surface in UI.",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ErrorData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "ErrorEvent",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "Every non-2xx response from `/api` has this shape.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "Fixture": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "id": {
+            "examples": [
+              "q3_revenue_review"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "participant_count": {
+            "title": "Participant Count",
+            "type": "integer"
+          },
+          "title": {
+            "examples": [
+              "Q3 Revenue Review"
+            ],
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "duration_seconds",
+          "participant_count"
+        ],
+        "title": "Fixture",
+        "type": "object"
+      },
+      "HarnessStart": {
+        "properties": {
+          "fixture_id": {
+            "examples": [
+              "q3_revenue_review"
+            ],
+            "title": "Fixture Id",
+            "type": "string"
+          },
+          "loop": {
+            "default": false,
+            "description": "Restart the fixture when it ends.",
+            "title": "Loop",
+            "type": "boolean"
+          },
+          "speed": {
+            "default": 1.0,
+            "description": "Playback multiplier. Use 4-10 to iterate quickly; 1.0 to demo.",
+            "maximum": 50.0,
+            "minimum": 0.1,
+            "title": "Speed",
+            "type": "number"
+          }
+        },
+        "required": [
+          "fixture_id"
+        ],
+        "title": "HarnessStart",
+        "type": "object"
+      },
+      "HarnessStop": {
+        "properties": {
+          "meeting_id": {
+            "title": "Meeting Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meeting_id"
+        ],
+        "title": "HarnessStop",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "app": {
+            "title": "App",
+            "type": "string"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/HealthProvider"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "app",
+          "providers"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "HealthProvider": {
+        "description": "One capability and whether its credentials are present.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "configured",
+          "detail"
+        ],
+        "title": "HealthProvider",
+        "type": "object"
+      },
+      "Integration": {
+        "properties": {
+          "account_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What account this is connected as. Display-only.",
+            "examples": [
+              "acme.slack.com"
+            ],
+            "title": "Account Label"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationCapability"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "connected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected At"
+          },
+          "display_name": {
+            "examples": [
+              "Slack"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Populated only when `status` is `error`.",
+            "title": "Error"
+          },
+          "is_stub": {
+            "default": true,
+            "description": "True when the connection is simulated. Drives the 'Demo' badge.",
+            "title": "Is Stub",
+            "type": "boolean"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/IntegrationProvider"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IntegrationStatus",
+            "default": "available"
+          }
+        },
+        "required": [
+          "provider",
+          "display_name"
+        ],
+        "title": "Integration",
+        "type": "object"
+      },
+      "IntegrationCapability": {
+        "enum": [
+          "documents",
+          "messages",
+          "calendar",
+          "crm"
+        ],
+        "title": "IntegrationCapability",
+        "type": "string"
+      },
+      "IntegrationProvider": {
+        "enum": [
+          "slack",
+          "gmail",
+          "gdrive",
+          "notion",
+          "salesforce"
+        ],
+        "title": "IntegrationProvider",
+        "type": "string"
+      },
+      "IntegrationStatus": {
+        "enum": [
+          "available",
+          "connected",
+          "error"
+        ],
+        "title": "IntegrationStatus",
+        "type": "string"
+      },
+      "Interjection": {
+        "properties": {
+          "body_md": {
+            "description": "Full reasoning, markdown. The dashboard renders this.",
+            "title": "Body Md",
+            "type": "string"
+          },
+          "chat_alert": {
+            "description": "What was (or would be) posted to Meet chat. Hard-capped at 500 chars by the platform. Render verbatim so the operator sees what the meeting saw.",
+            "maxLength": 500,
+            "title": "Chat Alert",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "confidence": {
+            "examples": [
+              0.82
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "headline": {
+            "examples": [
+              "Sarah's revenue claim conflicts with the Q3 board deck"
+            ],
+            "maxLength": 200,
+            "title": "Headline",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "itj_01J8XP8Q9R0S1T2U3V4W5X"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InterjectionKind"
+          },
+          "meeting_id": {
+            "title": "Meeting Id",
+            "type": "string"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "spoken": {
+            "default": false,
+            "description": "True when Kindred said this out loud rather than only in chat.",
+            "title": "Spoken",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InterjectionStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/InterjectionTrigger"
+          }
+        },
+        "required": [
+          "id",
+          "meeting_id",
+          "kind",
+          "status",
+          "trigger",
+          "chat_alert",
+          "headline",
+          "body_md",
+          "confidence",
+          "created_at"
+        ],
+        "title": "Interjection",
+        "type": "object"
+      },
+      "InterjectionApprove": {
+        "properties": {
+          "edited_chat_alert": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Override the generated alert before it posts.",
+            "title": "Edited Chat Alert"
+          }
+        },
+        "title": "InterjectionApprove",
+        "type": "object"
+      },
+      "InterjectionDismiss": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "InterjectionDismiss",
+        "type": "object"
+      },
+      "InterjectionKind": {
+        "enum": [
+          "contradiction",
+          "context",
+          "correction",
+          "answer",
+          "clarification"
+        ],
+        "title": "InterjectionKind",
+        "type": "string"
+      },
+      "InterjectionPolicy": {
+        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.",
+        "properties": {
+          "cooldown_seconds": {
+            "default": 90,
+            "description": "Minimum gap between interjections.",
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Cooldown Seconds",
+            "type": "integer"
+          },
+          "max_per_meeting": {
+            "default": 8,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Per Meeting",
+            "type": "integer"
+          },
+          "min_confidence": {
+            "default": 0.7,
+            "description": "Below this, the interjection is discarded.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Confidence",
+            "type": "number"
+          }
+        },
+        "title": "InterjectionPolicy",
+        "type": "object"
+      },
+      "InterjectionProposedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Interjection"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "interjection.proposed",
+            "default": "interjection.proposed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "InterjectionProposedEvent",
+        "type": "object"
+      },
+      "InterjectionStatus": {
+        "enum": [
+          "proposed",
+          "approved",
+          "posted",
+          "dismissed",
+          "failed"
+        ],
+        "title": "InterjectionStatus",
+        "type": "string"
+      },
+      "InterjectionTrigger": {
+        "description": "What in the meeting caused this.",
+        "properties": {
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Id"
+          },
+          "quote": {
+            "description": "The utterance that triggered this, verbatim. Rendered on the card.",
+            "examples": [
+              "new product revenue is up about eight percent this quarter"
+            ],
+            "title": "Quote",
+            "type": "string"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Segment Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quote"
+        ],
+        "title": "InterjectionTrigger",
+        "type": "object"
+      },
+      "InterjectionUpdatedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Interjection"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "interjection.updated",
+            "default": "interjection.updated",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "InterjectionUpdatedEvent",
+        "type": "object"
+      },
+      "Meeting": {
+        "properties": {
+          "agent_state": {
+            "$ref": "#/components/schemas/AgentState",
+            "default": "idle"
+          },
+          "bot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Recall.ai bot id. Null when `source` is `harness`.",
+            "title": "Bot Id"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "examples": [
+              "mtg_01J8XM6N7P8Q9R0S1T2U3V"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "meeting_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "https://meet.google.com/abc-defg-hij"
+            ],
+            "title": "Meeting Url"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/MeetingPlatform",
+            "default": "google_meet"
+          },
+          "roster": {
+            "items": {
+              "$ref": "#/components/schemas/RosterEntry"
+            },
+            "title": "Roster",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MeetingSource",
+            "default": "recall"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MeetingState"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/MeetingStats"
+          },
+          "title": {
+            "examples": [
+              "Q3 Revenue Review"
+            ],
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "state"
+        ],
+        "title": "Meeting",
+        "type": "object"
+      },
+      "MeetingCreate": {
+        "properties": {
+          "expected_person_ids": {
+            "description": "Who you expect to attend. Pre-seeds speaker matching, which is more reliable than matching on platform display names alone.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Person Ids",
+            "type": "array"
+          },
+          "meeting_url": {
+            "description": "Google Meet URL. Kindred dispatches a bot to join.",
+            "examples": [
+              "https://meet.google.com/abc-defg-hij"
+            ],
+            "minLength": 8,
+            "title": "Meeting Url",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "meeting_url"
+        ],
+        "title": "MeetingCreate",
+        "type": "object"
+      },
+      "MeetingPlatform": {
+        "enum": [
+          "google_meet",
+          "zoom",
+          "teams"
+        ],
+        "title": "MeetingPlatform",
+        "type": "string"
+      },
+      "MeetingSource": {
+        "enum": [
+          "recall",
+          "harness"
+        ],
+        "title": "MeetingSource",
+        "type": "string"
+      },
+      "MeetingState": {
+        "enum": [
+          "scheduled",
+          "joining",
+          "in_call",
+          "ended",
+          "failed"
+        ],
+        "title": "MeetingState",
+        "type": "string"
+      },
+      "MeetingStateChangedData": {
+        "properties": {
+          "agent_state": {
+            "$ref": "#/components/schemas/AgentState"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MeetingState"
+          }
+        },
+        "required": [
+          "state",
+          "agent_state"
+        ],
+        "title": "MeetingStateChangedData",
+        "type": "object"
+      },
+      "MeetingStateChangedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MeetingStateChangedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "meeting.state_changed",
+            "default": "meeting.state_changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "MeetingStateChangedEvent",
+        "type": "object"
+      },
+      "MeetingStats": {
+        "properties": {
+          "duration_seconds": {
+            "default": 0,
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "interjection_count": {
+            "default": 0,
+            "title": "Interjection Count",
+            "type": "integer"
+          },
+          "utterance_count": {
+            "default": 0,
+            "title": "Utterance Count",
+            "type": "integer"
+          }
+        },
+        "title": "MeetingStats",
+        "type": "object"
+      },
+      "MuteRequest": {
+        "properties": {
+          "muted": {
+            "title": "Muted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "muted"
+        ],
+        "title": "MuteRequest",
+        "type": "object"
+      },
+      "Page_Document_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Document]",
+        "type": "object"
+      },
+      "Page_Fixture_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Fixture"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Fixture]",
+        "type": "object"
+      },
+      "Page_Integration_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Integration"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Integration]",
+        "type": "object"
+      },
+      "Page_Interjection_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Interjection"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Interjection]",
+        "type": "object"
+      },
+      "Page_Meeting_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Meeting"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Meeting]",
+        "type": "object"
+      },
+      "Page_Person_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Person]",
+        "type": "object"
+      },
+      "Page_TranscriptSegment_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[TranscriptSegment]",
+        "type": "object"
+      },
+      "ParticipantJoinedData": {
+        "properties": {
+          "participant": {
+            "$ref": "#/components/schemas/RosterEntry"
+          }
+        },
+        "required": [
+          "participant"
+        ],
+        "title": "ParticipantJoinedData",
+        "type": "object"
+      },
+      "ParticipantJoinedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ParticipantJoinedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "participant.joined",
+            "default": "participant.joined",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "ParticipantJoinedEvent",
+        "type": "object"
+      },
+      "ParticipantLeftData": {
+        "properties": {
+          "participant_id": {
+            "title": "Participant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participant_id"
+        ],
+        "title": "ParticipantLeftData",
+        "type": "object"
+      },
+      "ParticipantLeftEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ParticipantLeftData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "participant.left",
+            "default": "participant.left",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "ParticipantLeftEvent",
+        "type": "object"
+      },
+      "ParticipantSpeakingChangedData": {
+        "properties": {
+          "is_speaking": {
+            "title": "Is Speaking",
+            "type": "boolean"
+          },
+          "participant_id": {
+            "title": "Participant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participant_id",
+          "is_speaking"
+        ],
+        "title": "ParticipantSpeakingChangedData",
+        "type": "object"
+      },
+      "ParticipantSpeakingChangedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ParticipantSpeakingChangedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "participant.speaking_changed",
+            "default": "participant.speaking_changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "ParticipantSpeakingChangedEvent",
+        "type": "object"
+      },
+      "Person": {
+        "properties": {
+          "aliases": {
+            "description": "Other names this person is called in transcripts. Used for speaker matching when the platform display name does not match the roster.",
+            "examples": [
+              [
+                "Sarah",
+                "S. Chen"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. Passed to the reasoning model as speaker context.",
+            "examples": [
+              "Owns the quarterly revenue model. Presents the board deck."
+            ],
+            "title": "Bio"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "examples": [
+              "Sarah Chen"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "sarah@acme.com"
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "examples": [
+              "prs_01J8XK2M3N4P5Q6R7S8T9V"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "org": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Acme Corp"
+            ],
+            "title": "Org"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "VP Finance"
+            ],
+            "title": "Role"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "voice_sample_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a voice sample is uploaded. Reserved for voice-print matching.",
+            "title": "Voice Sample Url"
+          }
+        },
+        "required": [
+          "display_name",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Person",
+        "type": "object"
+      },
+      "PersonCreate": {
+        "properties": {
+          "aliases": {
+            "description": "Other names this person is called in transcripts. Used for speaker matching when the platform display name does not match the roster.",
+            "examples": [
+              [
+                "Sarah",
+                "S. Chen"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. Passed to the reasoning model as speaker context.",
+            "examples": [
+              "Owns the quarterly revenue model. Presents the board deck."
+            ],
+            "title": "Bio"
+          },
+          "display_name": {
+            "examples": [
+              "Sarah Chen"
+            ],
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "sarah@acme.com"
+            ],
+            "title": "Email"
+          },
+          "org": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Acme Corp"
+            ],
+            "title": "Org"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "VP Finance"
+            ],
+            "title": "Role"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "PersonCreate",
+        "type": "object"
+      },
+      "PersonUpdate": {
+        "description": "All fields optional. Omitted fields are left unchanged.",
+        "properties": {
+          "aliases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aliases"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "org": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "title": "PersonUpdate",
+        "type": "object"
+      },
+      "PersonaProviderName": {
+        "enum": [
+          "characterai",
+          "claude"
+        ],
+        "title": "PersonaProviderName",
+        "type": "string"
+      },
+      "PersonaSettings": {
+        "properties": {
+          "character_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Character Id"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PersonaProviderName",
+            "default": "characterai"
+          },
+          "tone": {
+            "$ref": "#/components/schemas/PersonaTone",
+            "default": "concise_analyst"
+          }
+        },
+        "title": "PersonaSettings",
+        "type": "object"
+      },
+      "PersonaTone": {
+        "enum": [
+          "concise_analyst",
+          "warm_colleague",
+          "blunt"
+        ],
+        "title": "PersonaTone",
+        "type": "string"
+      },
+      "QuestionCapturedData": {
+        "properties": {
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Segment Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "QuestionCapturedData",
+        "type": "object"
+      },
+      "QuestionCapturedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QuestionCapturedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "speech.question_captured",
+            "default": "speech.question_captured",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "QuestionCapturedEvent",
+        "type": "object"
+      },
+      "RosterEntry": {
+        "properties": {
+          "display_name": {
+            "examples": [
+              "Sarah Chen"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "is_host": {
+            "default": false,
+            "title": "Is Host",
+            "type": "boolean"
+          },
+          "is_speaking": {
+            "default": false,
+            "title": "Is Speaking",
+            "type": "boolean"
+          },
+          "matched": {
+            "default": false,
+            "description": "Whether this participant was resolved to a known Person. Unmatched participants should be visually flagged \u2014 Kindred has no context on them.",
+            "title": "Matched",
+            "type": "boolean"
+          },
+          "participant_id": {
+            "description": "Platform-scoped, stable within the meeting.",
+            "examples": [
+              "p_2"
+            ],
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resolved Person, or null when unmatched.",
+            "title": "Person Id"
+          }
+        },
+        "required": [
+          "participant_id",
+          "display_name"
+        ],
+        "title": "RosterEntry",
+        "type": "object"
+      },
+      "SampleClip": {
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "id": {
+            "examples": [
+              "greeting"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "duration_ms"
+        ],
+        "title": "SampleClip",
+        "type": "object"
+      },
+      "Settings": {
+        "properties": {
+          "autonomy": {
+            "$ref": "#/components/schemas/Autonomy",
+            "default": "auto_post"
+          },
+          "interjection": {
+            "$ref": "#/components/schemas/InterjectionPolicy"
+          },
+          "persona": {
+            "$ref": "#/components/schemas/PersonaSettings"
+          },
+          "triage": {
+            "$ref": "#/components/schemas/TriageSettings"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceSettings"
+          },
+          "wake_aliases": {
+            "description": "Additional phrases that also wake Kindred. `Kindred` is kept so the agent still answers to its own name, and so existing fixtures keep working.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Wake Aliases",
+            "type": "array"
+          },
+          "wake_word": {
+            "default": "Hey AGI",
+            "description": "Spoken phrase that puts Kindred into speech mode. Matched against finalized transcript only, case- and punctuation-insensitively, with STT homophones (`hey a g i`, `hey aji`) generated automatically.",
+            "maxLength": 32,
+            "minLength": 2,
+            "title": "Wake Word",
+            "type": "string"
+          },
+          "wake_word_enabled": {
+            "default": true,
+            "title": "Wake Word Enabled",
+            "type": "boolean"
+          }
+        },
+        "title": "Settings",
+        "type": "object"
+      },
+      "SettingsUpdate": {
+        "description": "Partial update. Nested objects replace wholesale \u2014 send the complete sub-object.",
+        "properties": {
+          "autonomy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Autonomy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interjection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InterjectionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "persona": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonaSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "triage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriageSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wake_aliases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wake Aliases"
+          },
+          "wake_word": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wake Word"
+          },
+          "wake_word_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wake Word Enabled"
+          }
+        },
+        "title": "SettingsUpdate",
+        "type": "object"
+      },
+      "SnapshotData": {
+        "description": "Full current state. Sent exactly once, immediately on connect.",
+        "properties": {
+          "interjections": {
+            "items": {
+              "$ref": "#/components/schemas/Interjection"
+            },
+            "title": "Interjections",
+            "type": "array"
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Meeting"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on the global stream when no meeting is active."
+          },
+          "recent_segments": {
+            "description": "Trailing transcript window, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "title": "Recent Segments",
+            "type": "array"
+          }
+        },
+        "title": "SnapshotData",
+        "type": "object"
+      },
+      "SnapshotEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SnapshotData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "snapshot",
+            "default": "snapshot",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "SnapshotEvent",
+        "type": "object"
+      },
+      "SpeakRandomRequest": {
+        "description": "Play random sample clips \u2014 the smoke test for the whole audio-output path.",
+        "properties": {
+          "count": {
+            "default": 1,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "gap_seconds": {
+            "default": 0.0,
+            "description": "Silence between clips, on top of each clip's own length.",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Gap Seconds",
+            "type": "number"
+          }
+        },
+        "title": "SpeakRandomRequest",
+        "type": "object"
+      },
+      "SpeakRequest": {
+        "description": "Ask Kindred to say something out loud in a meeting.\n\nExactly one of `text` or `clip_id`. `text` goes through the voice provider;\n`clip_id` plays a known sample clip verbatim, which is what the demo path uses and\nwhat makes a stage failure recoverable.",
+        "properties": {
+          "clip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A sample clip id. `GET /api/speech/clips` lists them.",
+            "examples": [
+              "greeting"
+            ],
+            "title": "Clip Id"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "SpeakRequest",
+        "type": "object"
+      },
+      "TranscriptFinalEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TranscriptSegment"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "transcript.final",
+            "default": "transcript.final",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "TranscriptFinalEvent",
+        "type": "object"
+      },
+      "TranscriptPartialEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TranscriptSegment"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "transcript.partial",
+            "default": "transcript.partial",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "TranscriptPartialEvent",
+        "type": "object"
+      },
+      "TranscriptSegment": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              0.94
+            ],
+            "title": "Confidence"
+          },
+          "end_ms": {
+            "examples": [
+              158900
+            ],
+            "minimum": 0.0,
+            "title": "End Ms",
+            "type": "integer"
+          },
+          "id": {
+            "examples": [
+              "seg_01J8XN7P8Q9R0S1T2U3V4W"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "is_final": {
+            "description": "False for in-progress partials. Only finals drive the reasoning pipeline.",
+            "title": "Is Final",
+            "type": "boolean"
+          },
+          "meeting_id": {
+            "examples": [
+              "mtg_01J8XM6N7P8Q9R0S1T2U3V"
+            ],
+            "title": "Meeting Id",
+            "type": "string"
+          },
+          "participant_id": {
+            "description": "Platform-scoped participant id, stable within a meeting.",
+            "examples": [
+              "p_2"
+            ],
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resolved Person, or null when the speaker could not be matched.",
+            "examples": [
+              "prs_01J8XK2M3N4P5Q6R7S8T9V"
+            ],
+            "title": "Person Id"
+          },
+          "speaker_name": {
+            "description": "Best available name: the matched Person, else the platform display name.",
+            "examples": [
+              "Sarah Chen"
+            ],
+            "title": "Speaker Name",
+            "type": "string"
+          },
+          "start_ms": {
+            "description": "Offset from meeting start.",
+            "examples": [
+              154200
+            ],
+            "minimum": 0.0,
+            "title": "Start Ms",
+            "type": "integer"
+          },
+          "text": {
+            "examples": [
+              "new product revenue is up about eight percent this quarter"
+            ],
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "meeting_id",
+          "participant_id",
+          "speaker_name",
+          "text",
+          "is_final",
+          "start_ms",
+          "end_ms"
+        ],
+        "title": "TranscriptSegment",
+        "type": "object"
+      },
+      "TriageProviderName": {
+        "enum": [
+          "tenstorrent",
+          "claude",
+          "heuristic"
+        ],
+        "title": "TriageProviderName",
+        "type": "string"
+      },
+      "TriageSettings": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/TriageProviderName",
+            "default": "heuristic"
+          }
+        },
+        "title": "TriageSettings",
+        "type": "object"
+      },
+      "Utterance": {
+        "properties": {
+          "clip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the audio came from a fixed sample clip rather than TTS.",
+            "examples": [
+              "flag_revenue"
+            ],
+            "title": "Clip Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "default": 0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "examples": [
+              "utt_01J8XP6N7P8Q9R0S1T2U3V"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "meeting_id": {
+            "title": "Meeting Id",
+            "type": "string"
+          },
+          "placeholder": {
+            "default": false,
+            "description": "True when the audio is a stand-in that does not say `requested_text`. The UI should label it rather than presenting it as real speech.",
+            "title": "Placeholder",
+            "type": "boolean"
+          },
+          "played_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Played At"
+          },
+          "requested_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the caller asked Kindred to say, when that differs from `text`. Non-null only while the voice provider is a placeholder.",
+            "title": "Requested Text"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UtteranceStatus",
+            "default": "queued"
+          },
+          "text": {
+            "description": "What the audio actually says.",
+            "examples": [
+              "Quick flag. That revenue number conflicts with the Q3 board deck."
+            ],
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "meeting_id",
+          "text",
+          "created_at"
+        ],
+        "title": "Utterance",
+        "type": "object"
+      },
+      "UtteranceStatus": {
+        "enum": [
+          "queued",
+          "speaking",
+          "played",
+          "dropped",
+          "failed"
+        ],
+        "title": "UtteranceStatus",
+        "type": "string"
+      },
+      "VoiceProviderName": {
+        "enum": [
+          "inworld",
+          "elevenlabs",
+          "system"
+        ],
+        "title": "VoiceProviderName",
+        "type": "string"
+      },
+      "VoiceSettings": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/VoiceProviderName",
+            "default": "inworld"
+          },
+          "speaking_rate": {
+            "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Speaking Rate",
+            "type": "number"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "kindred_v1",
+            "title": "Voice Id"
+          }
+        },
+        "title": "VoiceSettings",
+        "type": "object"
+      },
+      "WakeDetectedData": {
+        "properties": {
+          "matched_text": {
+            "description": "The span that matched the wake word, for debugging false positives.",
+            "examples": [
+              "Kindred, what happened to"
+            ],
+            "title": "Matched Text",
+            "type": "string"
+          },
+          "participant_id": {
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Id"
+          },
+          "segment_id": {
+            "title": "Segment Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participant_id",
+          "segment_id",
+          "matched_text"
+        ],
+        "title": "WakeDetectedData",
+        "type": "object"
+      },
+      "WakeDetectedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WakeDetectedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "speech.wake_detected",
+            "default": "speech.wake_detected",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "data"
+        ],
+        "title": "WakeDetectedEvent",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "\nBackend for **Kindred**, a Google Meet copilot that actually speaks.\n\n### Building the frontend against this\n\nYou do not need a Google Meet, a Recall.ai key, or an internet connection. Start a\nfixture replay and subscribe to the socket:\n\n```bash\ncurl -X POST localhost:8000/api/dev/harness/start \\\n  -H 'content-type: application/json' \\\n  -d '{\"fixture_id\":\"q3_revenue_review\",\"speed\":6,\"loop\":true}'\n```\n\nThat emits the complete real-time event stream \u2014 participants, partial and final\ntranscript, speaking states, wake-word detection, agent state transitions, and\ninterjections with real citations. It is byte-for-byte the same contract a real meeting\nproduces; only `Meeting.source` differs.\n\n### Contract rules\n\n- Types are generated from this OpenAPI document. Never hand-write an API type.\n- All mutations are REST. The WebSocket is server-to-client only.\n- Adding fields, enum variants, and event types is free and unannounced. Renames and\n  removals get a heads-up first.\n- `switch` on `LiveEvent.type` with a `default` branch. New event types will arrive.\n",
+    "title": "meet_AGI \u2014 Kindred",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/_schema/client-message": {
+      "get": {
+        "description": "Not a real endpoint. See `/api/_schema/live-event`. Returns 501 if called.",
+        "operationId": "client_message_schema_api__schema_client_message_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientMessage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          },
+          "501": {
+            "description": "Always. This endpoint is a schema anchor only."
+          }
+        },
+        "summary": "Schema anchor for client-to-server socket frames (never call this)",
+        "tags": [
+          "_schema"
+        ]
+      }
+    },
+    "/api/_schema/live-event": {
+      "get": {
+        "description": "Not a real endpoint. It exists so the `LiveEvent` discriminated union and all of its payload types land in the OpenAPI document and thus in the generated TypeScript client. Returns 501 if called.\n\nImport the generated `LiveEvent` type in the frontend and `switch` on `event.type` \u2014 always with a `default` branch, because new event types are added without announcement.",
+        "operationId": "live_event_schema_api__schema_live_event_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "agent.state_changed": "#/components/schemas/AgentStateChangedEvent",
+                      "document.status_changed": "#/components/schemas/DocumentStatusChangedEvent",
+                      "error": "#/components/schemas/ErrorEvent",
+                      "interjection.proposed": "#/components/schemas/InterjectionProposedEvent",
+                      "interjection.updated": "#/components/schemas/InterjectionUpdatedEvent",
+                      "meeting.state_changed": "#/components/schemas/MeetingStateChangedEvent",
+                      "participant.joined": "#/components/schemas/ParticipantJoinedEvent",
+                      "participant.left": "#/components/schemas/ParticipantLeftEvent",
+                      "participant.speaking_changed": "#/components/schemas/ParticipantSpeakingChangedEvent",
+                      "snapshot": "#/components/schemas/SnapshotEvent",
+                      "speech.answered": "#/components/schemas/AnsweredEvent",
+                      "speech.clarification_asked": "#/components/schemas/ClarificationAskedEvent",
+                      "speech.question_captured": "#/components/schemas/QuestionCapturedEvent",
+                      "speech.wake_detected": "#/components/schemas/WakeDetectedEvent",
+                      "transcript.final": "#/components/schemas/TranscriptFinalEvent",
+                      "transcript.partial": "#/components/schemas/TranscriptPartialEvent"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SnapshotEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MeetingStateChangedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ParticipantJoinedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ParticipantLeftEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ParticipantSpeakingChangedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TranscriptPartialEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TranscriptFinalEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InterjectionProposedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InterjectionUpdatedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentStateChangedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/WakeDetectedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/QuestionCapturedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClarificationAskedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnsweredEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DocumentStatusChangedEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorEvent"
+                    }
+                  ],
+                  "title": "Response Live Event Schema Api  Schema Live Event Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          },
+          "501": {
+            "description": "Always. This endpoint is a schema anchor only."
+          }
+        },
+        "summary": "Schema anchor for WebSocket events (never call this)",
+        "tags": [
+          "_schema"
+        ]
+      }
+    },
+    "/api/dev/fixtures": {
+      "get": {
+        "operationId": "list_fixtures_api_dev_fixtures_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Fixture_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List available fixtures",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/dev/harness/start": {
+      "post": {
+        "description": "Creates a meeting with `source: harness` and begins replaying. The event stream is identical to a real meeting \u2014 subscribe to `WS /api/meetings/{id}/live` as normal.\n\n`POST /api/meetings/{id}/speak` works on a harness meeting too. The audio goes nowhere, but the queueing, the real clip durations, and the `agent.state_changed` events are the same ones a live bot produces, so the speaking UI can be built against it.",
+        "operationId": "start_harness_api_dev_harness_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HarnessStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Start a fixture replay",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/dev/harness/stop": {
+      "post": {
+        "operationId": "stop_harness_api_dev_harness_stop_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HarnessStop"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Stop a fixture replay",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/dev/reset": {
+      "post": {
+        "description": "Cancels running replays, clears meetings, transcripts, and interjections, and re-seeds the demo people, documents, and integrations. Handy between demo runs.",
+        "operationId": "reset_api_dev_reset_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ack"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Reset all state",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/documents": {
+      "get": {
+        "operationId": "list_documents_api_documents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DocumentStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DocumentSource"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Document_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List documents",
+        "tags": [
+          "documents"
+        ]
+      },
+      "post": {
+        "description": "Multipart upload. Accepts multiple files in one request. Returns immediately with `status: pending`; watch `document.status_changed` on the global socket, or poll this endpoint.",
+        "operationId": "upload_documents_api_documents_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_documents_api_documents_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Document_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Upload documents",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/documents/{document_id}": {
+      "delete": {
+        "operationId": "delete_document_api_documents__document_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Delete a document",
+        "tags": [
+          "documents"
+        ]
+      },
+      "get": {
+        "operationId": "get_document_api_documents__document_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Get a document",
+        "tags": [
+          "documents"
+        ]
+      },
+      "patch": {
+        "operationId": "update_document_api_documents__document_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Update document tags",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "Which capabilities are live.\n\nThe frontend can use this to disable or annotate features whose credentials are\nmissing, instead of letting the user click something that cannot work.",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health check",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/integrations": {
+      "get": {
+        "operationId": "list_integrations_api_integrations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Integration_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List integrations",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/{provider}": {
+      "delete": {
+        "operationId": "disconnect_integration_api_integrations__provider__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IntegrationProvider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Disconnect an integration",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/{provider}/connect": {
+      "post": {
+        "description": "Simulated for the hackathon: waits ~1.2s, then flips `status` to `connected` and fills in a plausible `account_label`. No OAuth is performed.",
+        "operationId": "connect_integration_api_integrations__provider__connect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IntegrationProvider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Connect an integration",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/interjections/{interjection_id}/approve": {
+      "post": {
+        "description": "Posts it to the meeting. Optionally overrides the generated chat alert.",
+        "operationId": "approve_api_interjections__interjection_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "interjection_id",
+            "required": true,
+            "schema": {
+              "title": "Interjection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterjectionApprove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Approve a proposed interjection",
+        "tags": [
+          "interjections"
+        ]
+      }
+    },
+    "/api/interjections/{interjection_id}/dismiss": {
+      "post": {
+        "description": "Discards it. Never reaches the meeting.",
+        "operationId": "dismiss_api_interjections__interjection_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "interjection_id",
+            "required": true,
+            "schema": {
+              "title": "Interjection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterjectionDismiss"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Dismiss a proposed interjection",
+        "tags": [
+          "interjections"
+        ]
+      }
+    },
+    "/api/interjections/{interjection_id}/speak": {
+      "post": {
+        "description": "Escalates a chat-only interjection to voice. **Milestone 7** performs the actual TTS; this marks `spoken` and drives the agent state so the UI can be built.",
+        "operationId": "speak_api_interjections__interjection_id__speak_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "interjection_id",
+            "required": true,
+            "schema": {
+              "title": "Interjection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Have Kindred say an interjection out loud",
+        "tags": [
+          "interjections"
+        ]
+      }
+    },
+    "/api/meetings": {
+      "get": {
+        "operationId": "list_meetings_api_meetings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MeetingState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Meeting_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List meetings",
+        "tags": [
+          "meetings"
+        ]
+      },
+      "post": {
+        "description": "Dispatches a Recall.ai bot and returns immediately with the meeting in `joining`. The bot is not audible until someone admits it from the Google Meet waiting room; watch for `state: in_call` on the socket, or poll this meeting.\n\nThe bot can speak from the moment it is admitted \u2014 see `POST /api/meetings/{id}/speak`. Transcript ingestion lands separately.\n\nWithout `RECALL_API_KEY` set, this returns a `failed` meeting explaining how to run a fixture-backed meeting instead. Nothing crashes; the frontend can build both paths.",
+        "operationId": "create_meeting_api_meetings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Send Kindred to a meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}": {
+      "get": {
+        "operationId": "get_meeting_api_meetings__meeting_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Get a meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/ask": {
+      "post": {
+        "description": "Type a question from the dashboard. With `speak: true` Kindred also says the answer into the meeting. **Milestone 4** replaces the canned answer below with real retrieval and reasoning; the response shape is final.",
+        "operationId": "ask_api_meetings__meeting_id__ask_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Ask Kindred a question directly",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/interjections": {
+      "get": {
+        "operationId": "get_interjections_api_meetings__meeting_id__interjections_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Interjection_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List interjections for a meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/interrupt": {
+      "post": {
+        "description": "Returns the utterances that were dropped. The clip currently playing finishes \u2014 audio already handed to Recall cannot be pulled back. True mid-sentence barge-in needs streamed Output Media.",
+        "operationId": "interrupt_api_meetings__meeting_id__interrupt_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Utterance"
+                  },
+                  "title": "Response Interrupt Api Meetings  Meeting Id  Interrupt Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Drop everything Kindred is waiting to say",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/leave": {
+      "post": {
+        "operationId": "leave_meeting_api_meetings__meeting_id__leave_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Make Kindred leave",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/mute": {
+      "post": {
+        "description": "Hard override. While muted Kindred will not post to chat or speak.",
+        "operationId": "mute_api_meetings__meeting_id__mute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Mute or unmute Kindred",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/speak": {
+      "post": {
+        "description": "Queues audio and returns immediately with the utterance in `queued`. Playback is serialized per meeting, so this is safe to call several times in a row \u2014 the clips play in order rather than on top of each other.\n\nPass `text` to go through the voice provider, or `clip_id` to play a known sample clip verbatim. While the voice provider is a placeholder, `text` still produces a canned clip; the utterance is flagged `placeholder: true` and keeps the requested text in `requested_text` so the UI can be honest about it.",
+        "operationId": "speak_api_meetings__meeting_id__speak_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Utterance"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Say something in the meeting",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/speak/random": {
+      "post": {
+        "description": "Smoke test for the audio path: queues `count` random sample clips, never the same one twice in a row. Use it to confirm the bot can be heard before trusting anything upstream of it.",
+        "operationId": "speak_random_api_meetings__meeting_id__speak_random_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SpeakRandomRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Utterance"
+                  },
+                  "title": "Response Speak Random Api Meetings  Meeting Id  Speak Random Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Play random sample clips",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/transcript": {
+      "get": {
+        "description": "Chronological, oldest first. Finals only \u2014 partials are socket-only.",
+        "operationId": "get_transcript_api_meetings__meeting_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TranscriptSegment_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Get the transcript",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/utterances": {
+      "get": {
+        "description": "Oldest first. Records are live \u2014 an utterance moves through `queued \u2192 speaking \u2192 played` in place, so polling this shows progress.",
+        "operationId": "list_utterances_api_meetings__meeting_id__utterances_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Utterance"
+                  },
+                  "title": "Response List Utterances Api Meetings  Meeting Id  Utterances Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "What Kindred has said in this meeting",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/api/meetings/{meeting_id}/wake": {
+      "post": {
+        "description": "Puts Kindred into `listening` without the wake word. This is the demo safety net for wake-word false negatives \u2014 put it behind a visible button.",
+        "operationId": "wake_api_meetings__meeting_id__wake_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Wake Kindred manually",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/api/people": {
+      "get": {
+        "operationId": "list_people_api_people_get",
+        "parameters": [
+          {
+            "description": "Opaque. Pass back `next_cursor`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque. Pass back `next_cursor`.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Person_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List people",
+        "tags": [
+          "people"
+        ]
+      },
+      "post": {
+        "operationId": "create_person_api_people_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Create a person",
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/{person_id}": {
+      "delete": {
+        "operationId": "delete_person_api_people__person_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Delete a person",
+        "tags": [
+          "people"
+        ]
+      },
+      "get": {
+        "operationId": "get_person_api_people__person_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Get a person",
+        "tags": [
+          "people"
+        ]
+      },
+      "patch": {
+        "operationId": "update_person_api_people__person_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Update a person",
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/{person_id}/voice-sample": {
+      "post": {
+        "description": "Reserved for voice-print speaker matching. Milestone 0 records that a sample exists and does not process the audio.",
+        "operationId": "upload_voice_sample_api_people__person_id__voice_sample_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_voice_sample_api_people__person_id__voice_sample_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Upload a voice sample",
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Get settings",
+        "tags": [
+          "settings"
+        ]
+      },
+      "patch": {
+        "description": "Partial update. Omitted keys are unchanged; nested objects replace wholesale.",
+        "operationId": "update_settings_api_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Update settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/speech/clips": {
+      "get": {
+        "description": "The stand-in voice while TTS is not wired up. These ids are what `clip_id` accepts on `/speak`, and the source of the audio `/speak/random` plays.",
+        "operationId": "list_clips_api_speech_clips_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "List the sample clips Kindred can play",
+        "tags": [
+          "speech"
+        ]
+      }
+    }
+  }
+}

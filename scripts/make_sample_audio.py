@@ -43,7 +43,10 @@ MP3_ARGS = ["-ac", "1", "-ar", "44100", "-b:a", "96k", "-codec:a", "libmp3lame"]
 CLIPS: list[dict[str, str]] = [
     {
         "id": "greeting",
-        "text": "Kindred is here and listening. I'll flag anything that conflicts with your documents.",
+        "text": (
+            "Kindred is here and listening. "
+            "I'll flag anything that conflicts with your documents."
+        ),
     },
     {
         "id": "flag_revenue",

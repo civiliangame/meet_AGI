@@ -13,3 +13,8 @@ build/
 *.log
 .pytest_cache/
 .ruff_cache/
+
+# Frontend build/deps
+frontend/.next/
+frontend/out/
+frontend/package-lock.json

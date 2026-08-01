@@ -19,10 +19,11 @@ against. Drop to `speed: 1` to rehearse the demo at real pace.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from ..errors import bad_request, not_found
 from ..ingest import harness
+from ..runtime import Runtime, get_runtime
 from ..schemas import Ack, Fixture, HarnessStart, HarnessStop, Meeting, Page
 from ..store import store
 
@@ -42,24 +43,40 @@ def list_fixtures() -> Page[Fixture]:
     description=(
         "Creates a meeting with `source: harness` and begins replaying. The event stream "
         "is identical to a real meeting — subscribe to `WS /api/meetings/{id}/live` as "
-        "normal."
+        "normal.\n\n"
+        "`POST /api/meetings/{id}/speak` works on a harness meeting too. The audio goes "
+        "nowhere, but the queueing, the real clip durations, and the `agent.state_changed` "
+        "events are the same ones a live bot produces, so the speaking UI can be built "
+        "against it."
     ),
 )
-def start_harness(payload: HarnessStart) -> Meeting:
+async def start_harness(
+    payload: HarnessStart, runtime: Runtime = Depends(get_runtime)
+) -> Meeting:
+    # Must be `async`: `harness.start` schedules the replay with `asyncio.create_task`,
+    # and FastAPI runs sync handlers in a threadpool where there is no running loop.
     try:
-        return harness.start(payload.fixture_id, speed=payload.speed, loop=payload.loop)
+        meeting = harness.start(payload.fixture_id, speed=payload.speed, loop=payload.loop)
     except FileNotFoundError as exc:
         raise bad_request(
             f"No fixture named {payload.fixture_id!r}.",
             {"available": [f.id for f in harness.list_fixtures()]},
         ) from exc
 
+    # Give the replay a speech channel that swallows audio, so `/speak` behaves exactly
+    # as it does in a live meeting minus the sound.
+    runtime.attach_dry_run(meeting.id, label=f"harness:{payload.fixture_id}")
+    return meeting
+
 
 @router.post("/harness/stop", response_model=Meeting, summary="Stop a fixture replay")
-def stop_harness(payload: HarnessStop) -> Meeting:
+async def stop_harness(
+    payload: HarnessStop, runtime: Runtime = Depends(get_runtime)
+) -> Meeting:
     meeting = harness.stop(payload.meeting_id)
     if meeting is None:
         raise not_found("Meeting", payload.meeting_id)
+    await runtime.speech.detach(payload.meeting_id)
     return meeting
 
 

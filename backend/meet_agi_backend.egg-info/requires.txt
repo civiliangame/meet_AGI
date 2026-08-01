@@ -4,6 +4,7 @@ pydantic>=2.9.0
 pydantic-settings>=2.6.0
 python-multipart>=0.0.12
 httpx>=0.27.0
+anthropic>=0.69.0
 
 [dev]
 pytest>=8.3.0

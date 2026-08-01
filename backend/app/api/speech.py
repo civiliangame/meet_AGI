@@ -14,7 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from ..errors import bad_request, conflict, not_found
-from ..providers.voice import VoiceError
+from ..providers.voice import VoiceError, get_sample_clips
 from ..runtime import Runtime, get_runtime
 from ..schemas import AgentState, Meeting
 from ..schemas.speech import (
@@ -59,17 +59,14 @@ def _require_speakable(meeting_id: str, runtime: Runtime) -> Meeting:
     ),
 )
 def list_clips(runtime: Runtime = Depends(get_runtime)) -> ClipList:
-    voice = runtime.voice
-    loader = getattr(voice, "clip", None)
-    clip_ids = getattr(voice, "clip_ids", [])
-    if loader is None:
-        return ClipList(provider=voice.name, items=[])
+    clips = get_sample_clips()
     items = [
-        SampleClip(id=clip.clip_id or clip_id, text=clip.text, duration_ms=clip.duration_ms)
-        for clip_id in clip_ids
-        if (clip := loader(clip_id))
+        SampleClip(id=clip_id, text=clip.text, duration_ms=clip.duration_ms)
+        for clip_id in clips.clip_ids
+        if (clip := clips.clip(clip_id))
     ]
-    return ClipList(provider=voice.name, items=items)
+    # `provider` is whoever is actually speaking; the clips remain playable either way.
+    return ClipList(provider=runtime.voice.name, items=items)
 
 
 @router.post(
@@ -94,10 +91,15 @@ async def speak(
     if (payload.text is None) == (payload.clip_id is None):
         raise bad_request("Provide exactly one of `text` or `clip_id`.")
 
-    try:
-        return await runtime.speech.say(meeting_id, payload.text, clip_id=payload.clip_id)
-    except VoiceError as exc:
-        raise bad_request(str(exc), {"clip_id": payload.clip_id}) from exc
+    if payload.clip_id is not None:
+        # Resolve the clip now rather than in the worker, so an unknown id is a 400 on
+        # this call instead of an utterance that quietly fails to play later.
+        try:
+            get_sample_clips().clip(payload.clip_id)
+        except VoiceError as exc:
+            raise bad_request(str(exc), {"clip_id": payload.clip_id}) from exc
+
+    return await runtime.speech.say(meeting_id, payload.text, clip_id=payload.clip_id)
 
 
 @router.post(
@@ -156,10 +158,4 @@ def list_utterances(meeting_id: str, runtime: Runtime = Depends(get_runtime)) ->
 def interrupt(meeting_id: str, runtime: Runtime = Depends(get_runtime)) -> list[Utterance]:
     if meeting_id not in store.meetings:
         raise not_found("Meeting", meeting_id)
-    before = {u.id for u in runtime.speech.history(meeting_id)}
-    runtime.speech.clear(meeting_id)
-    return [
-        u
-        for u in runtime.speech.history(meeting_id)
-        if u.id in before and u.status == "dropped" and u.error == "interrupted"
-    ]
+    return runtime.speech.clear(meeting_id)

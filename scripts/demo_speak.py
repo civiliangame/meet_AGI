@@ -28,6 +28,7 @@ if str(BACKEND) not in sys.path:
 
 from app.ids import PREFIX_MEETING, new_id  # noqa: E402
 from app.integrations.recall import RecallError  # noqa: E402
+from app.providers.voice import get_sample_clips  # noqa: E402
 from app.runtime import build_runtime  # noqa: E402
 from app.schemas import (  # noqa: E402
     AgentState,
@@ -42,7 +43,9 @@ logger = logging.getLogger("demo")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("meeting_url", nargs="?", help="Google Meet URL to join.")
     parser.add_argument("--clips", type=int, default=3, help="How many clips to play (default 3).")
     parser.add_argument(
@@ -75,8 +78,11 @@ def parse_args() -> argparse.Namespace:
 
 async def run(args: argparse.Namespace) -> int:
     runtime = build_runtime()
-    voice_clips = getattr(runtime.voice, "clip_ids", [])
-    print(f"voice provider : {runtime.voice.name} ({len(voice_clips)} sample clips)")
+    # Sample clips are assets, not a provider feature — they stay playable under real TTS.
+    print(
+        f"voice provider : {runtime.voice.name} "
+        f"({len(get_sample_clips().clip_ids)} sample clips available)"
+    )
 
     if args.dry_run:
         meeting = Meeting(
@@ -154,7 +160,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\ninterrupted", file=sys.stderr)
         return 130
-    except (TimeoutError, asyncio.TimeoutError):
+    except TimeoutError:
         print("\nthe bot was never admitted to the meeting.", file=sys.stderr)
         return 1
     except RecallError as exc:

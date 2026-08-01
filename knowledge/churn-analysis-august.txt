@@ -1,0 +1,40 @@
+# churn-analysis-august
+
+August churn analysis. Owner: Sarah Chen. Status: preliminary — the cohort model is
+still processing, so treat cuts below the segment level as directional.
+
+## Headline
+
+Monthly logo churn: 4.1%, up from 3.4% in Q2. Net revenue retention: 97%, down from
+104%.
+
+This is the highest monthly churn figure in eight quarters.
+
+## By segment
+
+- Enterprise: 1.2% monthly churn, flat quarter over quarter. No concern.
+- Mid-market: 6.8% monthly churn, up from 4.4%. This segment accounts for
+  approximately 80% of the total increase.
+- SMB: 3.9% monthly churn, up from 3.6%. Within normal variance.
+
+The increase is a mid-market problem, not a general one.
+
+## Stated reasons at cancellation
+
+Of 34 mid-market cancellations with an exit reason recorded:
+
+- Price / value: 19 (56%)
+- Missing functionality: 7 (21%)
+- Consolidating vendors: 5 (15%)
+- Other or unrecorded: 3 (9%)
+
+Price is the leading stated reason by a wide margin. This is the churn read the Q2
+product line review named as the condition for reopening the mid-market repricing
+decision — the condition has now been met.
+
+## Caveat
+
+Stated exit reasons are self-reported and skew toward price, because price is the
+easiest reason to give. The cohort model that would separate genuine price sensitivity
+from dissatisfaction is still processing. Anyone claiming the analysis has proven that
+price causes the churn is overstating what this document supports.

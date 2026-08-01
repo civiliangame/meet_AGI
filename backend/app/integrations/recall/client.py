@@ -175,7 +175,9 @@ class RecallClient:
         starts recording, and audio output is gated on recording having started.
         """
         automatic_audio_output: dict[str, Any] = {
-            "in_call_recording": {"data": {"kind": "mp3", "b64_data": b64_mp3(join_announcement_mp3)}}
+            "in_call_recording": {
+                "data": {"kind": "mp3", "b64_data": b64_mp3(join_announcement_mp3)}
+            }
         }
         if replay_on_participant_join:
             # Re-greet late arrivals, but stop after the first minute so the bot does not
@@ -218,6 +220,25 @@ class RecallClient:
             "POST",
             f"/bot/{bot_id}/output_audio/",
             json={"kind": "mp3", "b64_data": b64_mp3(mp3)},
+        )
+
+    # --- Chat -----------------------------------------------------------------------
+
+    async def send_chat_message(
+        self, bot_id: str, message: str, *, pin: bool = False, to: str = "everyone"
+    ) -> None:
+        """Post a message to the meeting chat.
+
+        Google Meet caps chat messages at 500 characters and rejects anything longer, so
+        callers must have truncated already — `app.chat.sinks` is where that happens.
+
+        `to` is `everyone` on every platform except Zoom. `pin` is used once, for the
+        recording disclosure on join.
+        """
+        await self._request(
+            "POST",
+            f"/bot/{bot_id}/send_chat_message/",
+            json={"to": to, "message": message, "pin": pin},
         )
 
     # --- Helpers ------------------------------------------------------------------

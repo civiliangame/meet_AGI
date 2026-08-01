@@ -29,7 +29,7 @@ from .api import api_router
 from .config import get_config
 from .errors import ApiError
 from .runtime import get_runtime, shutdown_runtime
-from .schemas import Schema
+from .schemas import ErrorResponse, Schema
 
 logging.basicConfig(
     level=logging.INFO,
@@ -109,7 +109,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
+# Declaring the error envelope here does two jobs: it documents the real error shape on
+# every endpoint in Swagger, and it pulls `ErrorResponse` into `components.schemas` so the
+# generated TypeScript has a type for it. A model no route references never reaches
+# OpenAPI at all.
+app.include_router(
+    api_router,
+    responses={
+        400: {"model": ErrorResponse, "description": "Bad request"},
+        404: {"model": ErrorResponse, "description": "Not found"},
+        409: {"model": ErrorResponse, "description": "Conflict"},
+        422: {"model": ErrorResponse, "description": "Validation error"},
+    },
+)
 
 
 # --- Error handlers ---------------------------------------------------------------
@@ -187,7 +199,31 @@ def health() -> Health:
     missing, instead of letting the user click something that cannot work.
     """
     config = get_config()
-    runtime = get_runtime()
+
+    # A health check that 500s tells you nothing. If the runtime cannot be built at all
+    # — a misconfigured provider, a missing asset — report that as degraded rather than
+    # raising, so the frontend still gets an answer it can render.
+    try:
+        runtime = get_runtime()
+    except Exception as exc:  # noqa: BLE001 — deliberately broad; this must not raise
+        log.exception("runtime construction failed")
+        return Health(
+            status="degraded",
+            app="meet_AGI",
+            providers=[
+                HealthProvider(
+                    name="runtime",
+                    configured=False,
+                    detail=f"{type(exc).__name__}: {exc}",
+                ),
+                HealthProvider(
+                    name="harness",
+                    configured=True,
+                    detail="fixture replay does not depend on the runtime",
+                ),
+            ],
+        )
+
     return Health(
         status="ok",
         app="meet_AGI",

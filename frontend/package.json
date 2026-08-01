@@ -1,0 +1,15 @@
+{
+  "name": "meet-agi-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kindred dashboard — config and live meeting view.",
+  "scripts": {
+    "gen:types": "bash ../scripts/gen-types.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.7.0"
+  }
+}

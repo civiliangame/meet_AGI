@@ -84,9 +84,26 @@ class TriageSettings(Schema):
 
 
 class Settings(Schema):
-    wake_word: str = Field(default="Kindred", min_length=2, max_length=32)
+    wake_word: str = Field(
+        default="Hey AGI",
+        min_length=2,
+        max_length=32,
+        description=(
+            "Spoken phrase that puts Kindred into speech mode. Matched against finalized "
+            "transcript only, case- and punctuation-insensitively, with STT homophones "
+            "("
+            "`hey a g i`, `hey aji`) generated automatically."
+        ),
+    )
+    wake_aliases: list[str] = Field(
+        default_factory=lambda: ["Kindred"],
+        description=(
+            "Additional phrases that also wake Kindred. `Kindred` is kept so the agent "
+            "still answers to its own name, and so existing fixtures keep working."
+        ),
+    )
     wake_word_enabled: bool = True
-    autonomy: Autonomy = Autonomy.SILENT
+    autonomy: Autonomy = Autonomy.AUTO_POST
     interjection: InterjectionPolicy = Field(default_factory=InterjectionPolicy)
     voice: VoiceSettings = Field(default_factory=VoiceSettings)
     persona: PersonaSettings = Field(default_factory=PersonaSettings)
@@ -97,6 +114,7 @@ class SettingsUpdate(Schema):
     """Partial update. Nested objects replace wholesale — send the complete sub-object."""
 
     wake_word: str | None = Field(default=None, min_length=2, max_length=32)
+    wake_aliases: list[str] | None = None
     wake_word_enabled: bool | None = None
     autonomy: Autonomy | None = None
     interjection: InterjectionPolicy | None = None

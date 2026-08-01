@@ -1,0 +1,51 @@
+# Q3-board-deck
+
+Acme Corp — Q3 Board Deck. Prepared by Sarah Chen, VP Finance.
+All figures are NET revenue on the accrual basis unless a slide says otherwise.
+
+## Slide 3 — Executive summary [p.3]
+
+Total revenue came in at $11.4M for the quarter, approximately 3% ahead of plan.
+Growth is carried almost entirely by the core product line. The new product line is
+below plan and declining month over month. Churn is the metric management is most
+concerned about heading into Q4.
+
+## Slide 11 — Core product line [p.11]
+
+Core Product Line: $9.98M, +4.2% MoM.
+Enterprise renewals were unusually strong in August, with three seven-figure accounts
+renewing early. That pull-forward flatters August and will not repeat in Q4.
+
+## Slide 14 — New product line [p.14]
+
+New Product Line: $1.42M (-12.1% MoM).
+
+The new product line declined for the second consecutive month. The decline is
+concentrated in mid-market accounts. This is the figure carried into the board summary
+on slide 3 and into the full-year reforecast.
+
+Definition note: the figures on this slide are NET revenue — recognised revenue after
+credits, refunds, and contract-timing adjustments. Gross bookings for the same line are
+tracked separately by the product team and are NOT comparable to this number.
+
+## Slide 16 — Revenue adjustments and credits [p.16]
+
+A $180K service credit was issued in August against a mid-market cohort following the
+July availability incident. The credit is netted against the new product line, which
+accounts for roughly 4 points of the -12.1% MoM movement on slide 14.
+
+Contract timing moved a further $240K of new-product bookings out of the quarter into
+Q4 recognition. Bookings and recognised revenue therefore diverge materially this
+quarter, and the two should not be quoted interchangeably.
+
+## Slide 22 — Churn [p.22]
+
+Monthly logo churn rose to 4.1%, up from 3.4% in Q2. The increase is concentrated in
+mid-market. Early indications point at pricing rather than product quality, but the
+August churn analysis was not complete at the time this deck was prepared.
+
+## Slide 27 — Q4 outlook [p.27]
+
+Plan assumes the new product line stabilises rather than recovers. Any Q4 forecast that
+assumes continued growth in the new product line is inconsistent with the trend on
+slide 14 and should be challenged.

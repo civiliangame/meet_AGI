@@ -1,0 +1,57 @@
+"""Reasoning providers, and the registry that picks one.
+
+`get_llm_provider()` returns `None` when there is no API key. That is the load-bearing
+part: the pipeline treats "no reasoning available" as a normal state and falls back to
+the fixture's canned output, so the harness demo runs on a laptop with an empty `.env`.
+"""
+
+from __future__ import annotations
+
+import logging
+from functools import lru_cache
+
+from .base import LLMError, LLMProvider, LLMRefusal
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def get_llm_provider() -> LLMProvider | None:
+    """The configured provider, or None when no credentials are set."""
+    from ...config import get_config
+
+    config = get_config()
+    if not config.anthropic_api_key:
+        return None
+
+    try:
+        from .claude import ClaudeProvider
+    except ImportError:
+        logger.warning(
+            "ANTHROPIC_API_KEY is set but the `anthropic` package is not installed. "
+            "Run `pip install -e .` in backend/."
+        )
+        return None
+
+    return ClaudeProvider(
+        api_key=config.anthropic_api_key,
+        model=config.anthropic_model,
+        fast_model=config.anthropic_fast_model,
+    )
+
+
+async def shutdown_llm_provider() -> None:
+    provider = get_llm_provider()
+    closer = getattr(provider, "aclose", None)
+    if closer is not None:
+        await closer()
+    get_llm_provider.cache_clear()
+
+
+__all__ = [
+    "LLMError",
+    "LLMProvider",
+    "LLMRefusal",
+    "get_llm_provider",
+    "shutdown_llm_provider",
+]
