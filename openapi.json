@@ -1174,6 +1174,8 @@
       "InterjectionKind": {
         "enum": [
           "contradiction",
+          "disagreement",
+          "uncertainty",
           "context",
           "correction",
           "answer",
@@ -1183,7 +1185,7 @@
         "type": "string"
       },
       "InterjectionPolicy-Input": {
-        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.\n\nThe defaults are tuned for *catching every contradiction*, which is what the\nambient loop is now scoped to and nothing else. The old 90-second cooldown was\nwritten when the loop could also volunteer context, where the risk is chatter. A\ncontradiction is rare and always worth hearing, and two of them thirty seconds\napart are two separate things the room got wrong \u2014 swallowing the second one is\nthe bug, not the rate limit working.",
+        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.\n\nThe defaults are tuned for *catching every moment the room is not on the same page*\n\u2014 a contradiction, a disagreement, or somebody unsure of a number. The old\n90-second cooldown was written when the loop could also volunteer context, where\nthe failure mode is chatter. These triggers are rare and always worth hearing, and\ntwo of them thirty seconds apart are two separate things the room is muddled about;\nswallowing the second is the bug, not the rate limit working.\n\n`min_confidence` sits below the old 0.7 on purpose. The model reports its credence\nthat the room is genuinely not aligned, and a real hedge or a soft disagreement\nhonestly scores lower than a flat contradiction. A 0.7 floor admitted only the\nstrongest case and quietly discarded exactly the softer signals this loop was\nwidened to catch.",
         "properties": {
           "cooldown_seconds": {
             "default": 20,
@@ -1201,7 +1203,7 @@
             "type": "integer"
           },
           "min_confidence": {
-            "default": 0.6,
+            "default": 0.5,
             "description": "Below this, the interjection is discarded.",
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1213,7 +1215,7 @@
         "type": "object"
       },
       "InterjectionPolicy-Output": {
-        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.\n\nThe defaults are tuned for *catching every contradiction*, which is what the\nambient loop is now scoped to and nothing else. The old 90-second cooldown was\nwritten when the loop could also volunteer context, where the risk is chatter. A\ncontradiction is rare and always worth hearing, and two of them thirty seconds\napart are two separate things the room got wrong \u2014 swallowing the second one is\nthe bug, not the rate limit working.",
+        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.\n\nThe defaults are tuned for *catching every moment the room is not on the same page*\n\u2014 a contradiction, a disagreement, or somebody unsure of a number. The old\n90-second cooldown was written when the loop could also volunteer context, where\nthe failure mode is chatter. These triggers are rare and always worth hearing, and\ntwo of them thirty seconds apart are two separate things the room is muddled about;\nswallowing the second is the bug, not the rate limit working.\n\n`min_confidence` sits below the old 0.7 on purpose. The model reports its credence\nthat the room is genuinely not aligned, and a real hedge or a soft disagreement\nhonestly scores lower than a flat contradiction. A 0.7 floor admitted only the\nstrongest case and quietly discarded exactly the softer signals this loop was\nwidened to catch.",
         "properties": {
           "cooldown_seconds": {
             "default": 20,
@@ -1231,7 +1233,7 @@
             "type": "integer"
           },
           "min_confidence": {
-            "default": 0.6,
+            "default": 0.5,
             "description": "Below this, the interjection is discarded.",
             "maximum": 1.0,
             "minimum": 0.0,
@@ -2661,6 +2663,12 @@
       },
       "Settings": {
         "properties": {
+          "ambient_scan": {
+            "default": true,
+            "description": "Run the cheap model as a gate in front of the contradiction reasoner. On by default because it is much cheaper and the reasoner is the slow call.\n\nTurn it **off** to reason over every non-back-channel utterance. That costs real money and is the right move when contradictions are being missed and you need to know whether the gate is what is eating them \u2014 it removes an entire stage from the diagnosis.",
+            "title": "Ambient Scan",
+            "type": "boolean"
+          },
           "autonomy": {
             "$ref": "#/components/schemas/Autonomy",
             "default": "auto_post"
@@ -2711,6 +2719,7 @@
           "wake_word_enabled",
           "autonomy",
           "secure_meeting",
+          "ambient_scan",
           "interjection",
           "voice",
           "persona",
@@ -2722,6 +2731,17 @@
       "SettingsUpdate": {
         "description": "Partial update. Nested objects replace wholesale \u2014 send the complete sub-object.",
         "properties": {
+          "ambient_scan": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Scan"
+          },
           "autonomy": {
             "anyOf": [
               {

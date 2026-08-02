@@ -88,13 +88,29 @@ handle_final_segment(segment)
                               triage → retrieve → find a contradiction → rate-limit → chat
 ```
 
-**The ambient loop only speaks up for a contradiction — but an argument counts.** Two
-statements that cannot both be true, each quoted verbatim. That happens three ways: the
-claim contradicts a document, it contradicts something said earlier in the meeting, or
-two people are openly disagreeing right now. The third is the most valuable and used to
-be explicitly excluded. A verdict that cannot produce both statements is dropped before
-it reaches the rate limiter, because a model that flags a conflict it cannot quote has
-reasoned its way there rather than read it off the page.
+**The ambient loop speaks up when the room is not on the same page about a fact.** Three
+strengths of that, and it does not wait for the strongest:
+
+| verdict | what it means |
+|---|---|
+| `contradiction` | two statements that cannot both be true |
+| `disagreement` | people are pulling different ways on a question of fact, nothing cleanly falsifiable |
+| `uncertainty` | somebody is unsure or hedging, and the documents can settle it |
+
+Requiring a clean logical contradiction meant staying silent through almost every real
+meeting, because most of them never produce one. Two people reading the same number
+differently, a "did we actually land on that?", a figure quoted with an audible hedge —
+those are the moments worth a line in chat, and they were all being discarded.
+
+What is *not* relaxed is the anchor: the model must quote a sentence that was actually
+said or written. A `contradiction` or `disagreement` needs both sides; an `uncertainty`
+needs something that resolves it — doubt with no answer available is not worth
+interrupting for. A verdict that cannot produce its anchor is dropped before the rate
+limiter, because a model that flags something it cannot quote has reasoned its way there
+rather than read it off the page.
+
+A disagreement the documents *cannot* settle is still flagged, naming both sides and
+saying so. A room going in circles over something nobody can check is the point.
 
 Triage runs **two** gates and either is enough. The claim gate asks "is there a checkable
 factual assertion here", which is right for a document conflict and exactly wrong for

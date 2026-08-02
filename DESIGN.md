@@ -21,10 +21,11 @@ track, knows who each person is, and stays quiet.
 Two loops, one entry point (`pipeline.handle_final_segment`, called once per finalized
 utterance):
 
-**Ambient loop (silent, always on).** Triage every utterance for a checkable factual
-claim, retrieve against the document corpus, ask Claude whether the evidence conflicts,
-rate-limit, and if it survives all of that, type a one-line flag into the meeting chat
-with the full reasoning in the dashboard.
+**Ambient loop (silent, always on).** Scan the recent window for any sign the room is not
+on the same page about a fact — a contradiction, a disagreement, or somebody unsure of a
+number — retrieve against the document corpus, ask the model what is actually in
+conflict, rate-limit, and if it survives all of that, type a one-line flag into the
+meeting chat with the full reasoning in the dashboard.
 
 **Speech mode (on demand).** Say "Hey AGI" and Meet AGI wakes, captures the question,
 answers it out loud through Inworld TTS, and types a summary into chat.
@@ -96,7 +97,7 @@ flowchart TB
         direction TB
         ENGINE["pipeline/engine<br/>handle_final_segment"]
         WAKE["pipeline/wake"]
-        TRIAGE["pipeline/triage"]
+        TRIAGE["pipeline/triage<br/>LLM conflict scan"]
         KB["knowledge/base<br/>keyword retrieval"]
         REASON["pipeline/reason<br/>Claude"]
         GATE["pipeline/gate<br/>rate limiter"]
@@ -128,7 +129,7 @@ flowchart TB
 | `ingest/harness.py` | Fixture replay. Emits the real event stream with no network. |
 | `pipeline/engine.py` | The one entry point. Dispatches ambient vs speech, per-meeting lock. |
 | `pipeline/wake.py` | Wake detection with homophone variants and a positional guard. |
-| `pipeline/triage.py` | Is this a checkable claim? Heuristic first, then a cheap model. |
+| `pipeline/triage.py` | Is this window worth a closer look? Noise guard, then a cheap model. |
 | `pipeline/reason.py` | The two Claude calls: `check_claim`, `answer_question`. |
 | `pipeline/gate.py` | Rate limiter: confidence, cooldown, per-meeting cap. |
 | `pipeline/context.py` | Conversation memory for the current meeting. |
@@ -161,45 +162,58 @@ fixture transcript; without it, it falls back to canned output with the same eve
 Runs on every finalized utterance that is not a wake.
 
 1. **Remember** — the utterance joins the meeting's conversation context.
-2. **Triage** — two gates, and either one is enough to earn a reasoning call.
-   - *The claim gate* asks "is there a checkable factual assertion here": utterances
-     under 8 words are out, pure back-channel ("yeah", "sounds good") is out. Free, and
-     it removes most of the traffic. *The ordering is the whole optimization — you should
-     not pay frontier-model prices to decide whether "yeah, sounds good" needs
-     fact-checking.*
-   - *The conflict gate* asks something different: is this somebody pushing back? The
-     claim gate is the right question for a document conflict and the wrong one for a
-     live argument, because pushback is short, hedged, pronoun-heavy and often phrased
-     as a question — every one of the claim gate's drop rules. Measured against a real
-     meeting log, ten of twelve disagreement utterances died at the claim gate, which
-     meant the second half of every argument was invisible and a contradiction spanning
-     two turns could not be found. The conflict gate costs two extra model calls per 322
-     utterances.
+2. **Scan** — a cheap model reads the recent window and answers "is this room on the
+   same page, or is it worth a closer look?". Only what survives reaches the expensive
+   call. *The ordering is the whole optimization — you should not pay frontier-model
+   prices to decide whether "yeah, sounds good" needs checking.*
 
-   Conflict-shaped speech also skips the cheap classifier entirely. That classifier is
-   prompted to find factual assertions, so asked whether "no, that's not what the deck
-   says" is checkable it answers no — correct by its own lights, fatal for the feature.
+   **This was regexes, and regexes cannot do it.** The old gates matched surface forms —
+   `no`, `but`, `actually`, `that's not right` — and were wrong in both directions on
+   exactly the cases that matter. Half of real disagreement carries none of those words
+   ("Enterprise is fine." / "Enterprise is where we're bleeding.") and half the
+   utterances that do carry them are agreement ("no, yeah, exactly"). Worse, a
+   contradiction is a property of *two* statements and a regex only ever sees one, so a
+   conflict whose other half was three turns ago was structurally unfindable. Measured
+   against a real meeting log, ten of twelve disagreement utterances died at that gate.
+
+   The scan **fails open**: an error, or no provider configured, sends the window to the
+   reasoner anyway. A gate that fails closed silences the whole feature and does it
+   invisibly, which this pipeline has already been through once. `settings.ambient_scan`
+   turns it off entirely, reasoning over every non-back-channel utterance — expensive,
+   and the fastest way to tell whether the gate is what is eating a missed detection.
+
+   The only free rejection left is a noise guard for utterances that are *entirely*
+   back-channel. That is not contradiction detection; it is not paying an API call to
+   think about the word "yeah".
+
 3. **Retrieve** — keyword prefilter over the corpus. Deliberately not semantic search:
    it exists to keep the prompt small, not to be the final word on relevance. Claude reads
    what survives and decides what matters. Recall beats precision here — a chunk wrongly
    included costs a few hundred tokens; a chunk wrongly excluded is a fact Meet AGI cannot
    see.
-4. **Reason** — the model returns a structured verdict, and the only verdict that
-   interjects is **contradiction**: two specific statements that cannot both be true,
-   each quoted verbatim. Three ways that happens, all equal:
-   - the claim contradicts a sentence in the retrieved documents;
-   - the claim contradicts something said earlier in this meeting;
-   - **two people are arguing right now.** One asserts, another pushes back. This is the
-     highest-value moment to speak into, because the corpus can usually settle it and
-     the room is already listening. If the documents do not settle it, it still flags —
-     naming the disagreement and saying so is the useful thing.
+4. **Reason** — the model returns a structured verdict. The trigger is **the room not
+   being on the same page about a fact**, at three strengths, all of which interject:
 
-   There is no `context` verdict and no `correction` verdict. The discipline is
-   structural rather than tonal: a model that flags a conflict but cannot produce both
-   statements has reasoned its way to a conclusion instead of reading one off the page,
-   and `Verdict.is_flag` drops it before it reaches the gate. That hard requirement is
-   what lets the prompt be permissive about *what* counts — the earlier version leaned
-   on "a false flag costs far more than a missed one" and simply never fired.
+   | verdict | meaning | anchor required |
+   |---|---|---|
+   | `contradiction` | two statements that cannot both be true | both sides quoted |
+   | `disagreement` | different readings of a fact, nothing cleanly falsifiable | both sides quoted |
+   | `uncertainty` | somebody is unsure and the corpus can settle it | the quote, plus a citation or a resolving statement |
+
+   Insisting on a clean logical contradiction was wrong. Most meetings never produce
+   one; what they produce is people reading a number differently, half-remembering a
+   figure, or asking whether something was actually decided. Those are the moments a
+   copilot is useful, and they were all being thrown away.
+
+   A disagreement the documents cannot settle still flags — naming both sides and
+   saying the corpus does not resolve it is the useful thing. There is no `context` or
+   `correction` verdict; nothing emits them.
+
+   The discipline that remains is **structural rather than tonal**: the model must quote
+   a sentence that was actually said or written, and `Verdict.is_flag` drops anything
+   that cannot, before the gate sees it. That hard anchor is what lets the prompt be
+   permissive about *what* counts. Two earlier versions leaned on tone instead — "a
+   false flag costs far more than a missed one" — and simply never fired.
 5. **Gate** — drop it unless confidence clears `min_confidence`, the cooldown has
    elapsed, and the per-meeting cap is not hit. **Answers to direct questions bypass the
    gate** — if someone asks, Meet AGI replies. Only unprompted interjections are rationed.
@@ -213,16 +227,22 @@ pipeline raises into its caller: a meeting that keeps running with a degraded co
 beats one where a reasoning exception stops the transcript.
 
 **The rate limiter is a feature.** A copilot that will not shut up is worse than no
-copilot. Defaults: `min_confidence 0.6`, `cooldown 20s`, `max 30 per meeting`, all live-
+copilot. Defaults: `min_confidence 0.5`, `cooldown 20s`, `max 30 per meeting`, all live-
 tunable from the settings UI — the right cooldown for a four-person review is not the
 right cooldown for a standup, and you find that out during the meeting.
 
 Those defaults were `0.7 / 90s / 8` when the loop could also volunteer context, where
-the failure mode is chatter. Now that it only fires on contradictions the calculus
-inverts: a contradiction is rare and always worth hearing, and two of them thirty
-seconds apart are two separate things the room got wrong. A 90-second cooldown
-swallowing the second one is the bug, not the rate limit working. Suppression is logged
-at `WARNING` for exactly that reason.
+the failure mode is chatter. Now that it fires on the room being out of step the
+calculus inverts: these moments are rare and worth hearing, and two of them thirty
+seconds apart are two separate things the room is muddled about. A 90-second cooldown
+swallowing the second is the bug, not the rate limit working. Suppression is logged at
+`WARNING` for exactly that reason.
+
+`min_confidence` came down from 0.7 with the widening. The model reports its credence
+that the room is genuinely not aligned, not that it knows who is right — and a real
+hedge or a soft disagreement honestly scores lower than a flat contradiction. A 0.7
+floor admitted only the strongest case and silently discarded precisely the softer
+signals the loop was widened to catch.
 
 **Autonomy levels** (`settings.autonomy`, default `auto_post`):
 
@@ -466,15 +486,20 @@ lands in OpenAPI — see §8.3.
 
 ### 8.2 Central objects
 
-**`Interjection`** — a conclusion. `kind` ∈ `contradiction | context | correction |
-answer | clarification`; `status` ∈ `proposed | approved | posted | dismissed | failed`.
-Carries `chat_alert` (≤500 chars, what the meeting saw), `headline`, `body_md`,
-`confidence`, `citations[]`, and `trigger` (the quote that caused it).
+**`Interjection`** — a conclusion. `kind` ∈ `contradiction | disagreement | uncertainty |
+context | correction | answer | clarification`; `status` ∈ `proposed | approved | posted |
+dismissed | failed`. Carries `chat_alert` (≤500 chars, what the meeting saw), `headline`,
+`body_md`, `confidence`, `citations[]`, and `trigger` (the quote that caused it).
 
-The ambient loop now only ever emits `contradiction`, and speech mode only ever emits
-`answer`. `context` and `correction` stay in the enum because removing an enum variant is
-a breaking change for a generated client and this one costs nothing to keep — but nothing
-produces them, and a frontend need not render them.
+The ambient loop emits `contradiction`, `disagreement`, or `uncertainty`; speech mode
+emits `answer`. The three ambient kinds are deliberately not collapsed into one: a
+reviewer's reaction to "these two figures conflict" is not their reaction to "somebody
+sounded unsure", and flattening them would make the strong signal look as common as the
+weak one. Render them with different weight.
+
+`context` and `correction` stay in the enum because removing a variant is a breaking
+change for a generated client and keeping them costs nothing — but nothing produces
+them, and a frontend need not render them.
 
 **`Utterance`** — an audio event. Deliberately separate from `Interjection`: an
 interjection is a conclusion, an utterance is the sound that carried it. `status` ∈

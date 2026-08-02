@@ -76,6 +76,18 @@ log = logging.getLogger(__name__)
 _WORD = re.compile(r"\w+")
 """Tokenizer for the contradiction fingerprint. See `_fingerprint`."""
 
+_KIND_BY_VERDICT = {
+    "contradiction": InterjectionKind.CONTRADICTION,
+    "disagreement": InterjectionKind.DISAGREEMENT,
+    "uncertainty": InterjectionKind.UNCERTAINTY,
+}
+"""How the model's verdict lands on the dashboard.
+
+Kept distinct rather than collapsed into `contradiction`, because the reviewer's
+reaction to "these two figures conflict" is not the reaction to "somebody sounded
+unsure", and flattening them would make the strong signal look as common as the weak one.
+"""
+
 WAKE_DEBOUNCE_SECONDS = 3.0
 """Ignore a second wake word this soon after the last. DESIGN.md §5."""
 
@@ -386,12 +398,18 @@ class PipelineEngine:
     # --- ambient loop ---------------------------------------------------------------
 
     async def _ambient(self, segment: TranscriptSegment) -> None:
-        """The unprompted half. Contradictions only — nothing else earns an interjection.
+        """The unprompted half. Speaks when the room is not on the same page about a fact.
 
-        `Verdict.is_flag` is where that rule is enforced: it holds only when the model
-        returned "contradiction" *and* could quote both of the statements that cannot
-        both be true. A verdict without that pair is a model narrating rather than
-        catching something, and the room does not need it.
+        Three strengths of that, all of which interject: a flat contradiction, a
+        disagreement with nothing cleanly falsifiable, and somebody audibly unsure of
+        something the documents can settle. Waiting for a clean logical contradiction
+        meant staying silent through almost every real meeting, because most of them
+        never produce one.
+
+        `Verdict.is_flag` holds the line that is left: the model has to quote a sentence
+        that was actually said or written. A paired verdict needs both sides; an
+        uncertainty needs something that resolves it. Anything else is the model
+        narrating, and the room does not need it.
         """
         meeting_id = segment.meeting_id
         quote = segment.text[:70]
@@ -421,11 +439,12 @@ class PipelineEngine:
             return
 
         log.info(
-            "[%s] CONTRADICTION (%.2f) — %r vs %r",
+            "[%s] %s (%.2f) — %r vs %r",
             meeting_id,
+            verdict.kind.upper(),
             verdict.confidence,
             verdict.statement_a[:60],
-            verdict.statement_b[:60],
+            verdict.statement_b[:60] or "(resolved from the documents)",
         )
 
         # Now that the model re-reads the whole window on every utterance, it finds the
@@ -437,7 +456,7 @@ class PipelineEngine:
         fingerprint = self._fingerprint(verdict)
         seen = self._flagged.setdefault(meeting_id, set())
         if fingerprint in seen:
-            log.info("[%s] already flagged this pair; staying quiet", meeting_id)
+            log.info("[%s] already raised this; staying quiet", meeting_id)
             return
         seen.add(fingerprint)
 
@@ -453,7 +472,7 @@ class PipelineEngine:
         posting = autonomy == Autonomy.AUTO_POST
         interjection = store.build_interjection(
             meeting_id,
-            kind=InterjectionKind.CONTRADICTION,
+            kind=_KIND_BY_VERDICT.get(verdict.kind, InterjectionKind.CONTRADICTION),
             status=InterjectionStatus.POSTED if posting else InterjectionStatus.PROPOSED,
             chat_alert=with_trigger_prefix(verdict.chat_alert, verdict.topic),
             headline=verdict.headline,

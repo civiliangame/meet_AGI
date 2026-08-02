@@ -57,16 +57,22 @@ class InterjectionPolicy(Schema):
     the difference between "helpful" and "muted by the host in minute two", and they
     are exposed in the UI so they can be tuned live during a meeting.
 
-    The defaults are tuned for *catching every contradiction*, which is what the
-    ambient loop is now scoped to and nothing else. The old 90-second cooldown was
-    written when the loop could also volunteer context, where the risk is chatter. A
-    contradiction is rare and always worth hearing, and two of them thirty seconds
-    apart are two separate things the room got wrong — swallowing the second one is
-    the bug, not the rate limit working.
+    The defaults are tuned for *catching every moment the room is not on the same page*
+    — a contradiction, a disagreement, or somebody unsure of a number. The old
+    90-second cooldown was written when the loop could also volunteer context, where
+    the failure mode is chatter. These triggers are rare and always worth hearing, and
+    two of them thirty seconds apart are two separate things the room is muddled about;
+    swallowing the second is the bug, not the rate limit working.
+
+    `min_confidence` sits below the old 0.7 on purpose. The model reports its credence
+    that the room is genuinely not aligned, and a real hedge or a soft disagreement
+    honestly scores lower than a flat contradiction. A 0.7 floor admitted only the
+    strongest case and quietly discarded exactly the softer signals this loop was
+    widened to catch.
     """
 
     min_confidence: float = Field(
-        default=0.6, ge=0.0, le=1.0, description="Below this, the interjection is discarded."
+        default=0.5, ge=0.0, le=1.0, description="Below this, the interjection is discarded."
     )
     cooldown_seconds: int = Field(
         default=20, ge=0, le=3600, description="Minimum gap between interjections."

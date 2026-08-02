@@ -36,12 +36,24 @@ TOP_K = 6
 """Chunks passed to the reasoning call. Enough to hold both sides of a disagreement."""
 
 
+FLAGGING_KINDS = frozenset({"contradiction", "disagreement", "uncertainty"})
+"""Verdicts that interject. DESIGN.md §4.
+
+The room not being on the same page is the trigger, and a flat contradiction is only
+the strongest form of that. A disagreement with no clean falsification, or somebody
+audibly unsure of a number you can look up, are both worth a line in chat.
+"""
+
+PAIRED_KINDS = frozenset({"contradiction", "disagreement"})
+"""Verdicts that are inherently about two things, so both must be quotable."""
+
+
 @dataclass
 class Verdict:
-    """The ambient loop's conclusion about one utterance."""
+    """The ambient loop's conclusion about the current window."""
 
     kind: str
-    """contradiction | none. Nothing else interjects — DESIGN.md §4."""
+    """contradiction | disagreement | uncertainty | none."""
     confidence: float
     topic: str
     """Short noun phrase naming what triggered this. Renders in the chat prefix."""
@@ -49,25 +61,32 @@ class Verdict:
     chat_alert: str
     body_md: str
     statement_a: str = ""
-    """The earlier statement, verbatim. Half of the pair that cannot both be true."""
+    """What is being responded to, verbatim. Required for anything that interjects."""
     statement_b: str = ""
-    """The claim under review, verbatim. The other half."""
+    """The other side, verbatim. Empty for a lone uncertainty."""
     citations: list[Citation] = field(default_factory=list)
 
     @property
     def is_flag(self) -> bool:
         """Whether this interjects.
 
-        Both statements are load-bearing, not decoration. A model that flags a
-        contradiction but cannot quote the two conflicting statements has reasoned its
-        way to a conclusion rather than read one off the transcript, and that is the
-        exact failure mode that produces an interjection nobody in the room agrees with.
+        `statement_a` is load-bearing, not decoration: a model that flags something but
+        cannot quote the sentence it is responding to has reasoned its way to a
+        conclusion rather than read one off the page, and that is the exact failure mode
+        that produces an interjection nobody in the room recognises.
+
+        The second statement is required only where the verdict is *about* two things.
+        A contradiction or a disagreement with one side missing is incoherent. An
+        uncertainty legitimately has one — somebody hedged, and what resolves it is a
+        citation rather than another quote — so it is held to a different bar below.
         """
-        return (
-            self.kind == "contradiction"
-            and bool(self.statement_a.strip())
-            and bool(self.statement_b.strip())
-        )
+        if self.kind not in FLAGGING_KINDS or not self.statement_a.strip():
+            return False
+        if self.kind in PAIRED_KINDS:
+            return bool(self.statement_b.strip())
+        # Uncertainty earns an interruption only if it can be resolved. Doubt with
+        # nothing to answer it is just doubt, and saying so out loud helps nobody.
+        return bool(self.citations) or bool(self.statement_b.strip())
 
 
 @dataclass
@@ -145,7 +164,7 @@ async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
         return NO_FLAG
 
     kind = str(result.get("verdict", "none"))
-    if kind != "contradiction":
+    if kind not in FLAGGING_KINDS:
         return NO_FLAG
 
     verdict = Verdict(
@@ -162,10 +181,14 @@ async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
         ),
     )
     if not verdict.is_flag:
+        # Almost always one of two things: a paired verdict missing a side, or an
+        # uncertainty with nothing that would resolve it. Both are the model narrating.
         log.info(
-            "contradiction claimed without both statements; dropping (a=%r, b=%r)",
+            "%s dropped — nothing to anchor it (a=%r, b=%r, citations=%d)",
+            kind,
             verdict.statement_a[:60],
             verdict.statement_b[:60],
+            len(verdict.citations),
         )
         return NO_FLAG
     return verdict

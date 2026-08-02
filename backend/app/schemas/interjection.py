@@ -27,11 +27,23 @@ CHAT_ALERT_MAX_CHARS = 500
 
 class InterjectionKind(str, Enum):
     CONTRADICTION = "contradiction"
-    """Retrieved evidence conflicts with what was said."""
+    """Two statements that cannot both be true. The strongest ambient trigger."""
+    DISAGREEMENT = "disagreement"
+    """People are not aligned on a question of fact, with nothing cleanly falsifiable.
+
+    Different readings of the same number, an unresolved push-back, two people talking
+    past each other. Weaker than a contradiction and usually just as worth hearing.
+    """
+    UNCERTAINTY = "uncertainty"
+    """Somebody is unsure or hedging, and the documents can settle it.
+
+    The gentlest trigger. Renders as an offer rather than a flag — the room was about to
+    go and look this up.
+    """
     CONTEXT = "context"
-    """Not a conflict — additional context worth surfacing."""
+    """Not a conflict — additional context worth surfacing. Nothing emits this today."""
     CORRECTION = "correction"
-    """A factual error with a clear right answer."""
+    """A factual error with a clear right answer. Nothing emits this today."""
     ANSWER = "answer"
     """A response to a direct question in speech mode."""
     CLARIFICATION = "clarification"
