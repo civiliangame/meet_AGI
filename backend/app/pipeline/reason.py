@@ -103,16 +103,27 @@ def _citations(chunks: list[Chunk], chunk_ids: list[str], quotes: list[str]) -> 
 
 
 async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
-    """Does this claim contradict the documents, or something already said?
+    """Scan the recent window for two statements that cannot both be true.
 
-    Contradictions only. A claim the documents merely add colour to is not something
-    Meet AGI says anything about.
+    Contradictions only — something the documents merely add colour to is not worth
+    interrupting for.
+
+    `transcript` must be the window **including** `claim`. The model is looking across
+    the whole exchange for a conflicting pair, not judging `claim` against everything
+    else: in a conference room several people share one microphone, several turns land
+    in a single buffered line, and both halves of a contradiction are routinely already
+    "earlier". `claim` is passed separately only to mark where the conversation is.
+
+    Retrieval is keyed on the claim plus the tail of the window, so a pronoun-heavy line
+    ("no, that's not what it says") still pulls the documents the room is arguing about
+    instead of nothing at all.
     """
     provider = get_llm_provider()
     if provider is None:
         return NO_FLAG
 
-    documents, chunks = get_knowledge_base().context_for(claim, top_k=TOP_K)
+    query = f"{claim}\n{transcript[-800:]}"
+    documents, chunks = get_knowledge_base().context_for(query, top_k=TOP_K)
 
     try:
         result = await provider.complete_json(

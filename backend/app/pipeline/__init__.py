@@ -4,7 +4,7 @@
         │
         ├── kill phrase heard ─▶ stop: cancel audio and reasoning, immediately
         ├── wake word heard ───▶ speech mode: retrieve, answer, speak, type into chat
-        └── otherwise ─────────▶ ambient: triage, retrieve, find a contradiction, type
+        └── otherwise ─────────▶ ambient: scan, retrieve, find a contradiction, type
 
 Consumers call `handle_final_segment` once per finalized transcript segment and get on
 with their lives — it dispatches and returns. The fixture harness and the Recall
@@ -18,7 +18,7 @@ from .context import ConversationMemory, MeetingContext, Turn
 from .engine import PipelineEngine, engine, handle_final_segment, handle_stop
 from .gate import GateDecision, InterjectionGate
 from .reason import Answer, Verdict, answer_question, check_claim
-from .triage import heuristic_is_checkable, is_checkable_claim
+from .triage import ScanResult, is_noise, scan_for_conflict
 from .wake import (
     StopDetector,
     StopMatch,
@@ -36,6 +36,7 @@ __all__ = [
     "InterjectionGate",
     "MeetingContext",
     "PipelineEngine",
+    "ScanResult",
     "StopDetector",
     "StopMatch",
     "Turn",
@@ -49,7 +50,7 @@ __all__ = [
     "engine",
     "handle_final_segment",
     "handle_stop",
-    "heuristic_is_checkable",
-    "is_checkable_claim",
+    "is_noise",
+    "scan_for_conflict",
     "normalize",
 ]

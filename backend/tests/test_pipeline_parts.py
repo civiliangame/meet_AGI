@@ -11,13 +11,8 @@ import pytest
 from app.chat.sinks import NullChatSink, fit_to_limit, with_trigger_prefix
 from app.knowledge import get_knowledge_base
 from app.pipeline.gate import InterjectionGate
-from app.pipeline.triage import (
-    heuristic_is_checkable,
-    is_checkable_claim,
-    looks_like_conflict,
-)
+from app.pipeline.triage import is_noise, scan_for_conflict
 from app.schemas import CHAT_ALERT_MAX_CHARS
-from app.schemas.settings import TriageProviderName
 from app.store import store
 
 
@@ -121,127 +116,103 @@ class TestChatLimit:
         assert len(sink.sent[0]) <= CHAT_ALERT_MAX_CHARS
 
 
-class TestTriageHeuristic:
-    @pytest.mark.parametrize(
-        "utterance",
-        [
-            "New product revenue is up about eight percent this quarter",
-            "Churn is at four point one percent monthly, up from three point four",
-            "We closed three mid-market deals above forty thousand ACV in July",
-        ],
-    )
-    def test_claims_pass(self, utterance: str) -> None:
-        assert heuristic_is_checkable(utterance)
+class TestNoiseGuard:
+    """The only free rejection left. Everything else is the model's call.
 
-    @pytest.mark.parametrize(
-        "utterance",
-        [
-            "yeah",
-            "sounds good",
-            "Yeah yeah ok sure",
-            "Good. Next, churn.",
-            "And the new product line?",
-            "What's driving it?",
-            "I think we should revisit the pricing conversation",
-        ],
-    )
-    def test_non_claims_are_dropped(self, utterance: str) -> None:
-        assert not heuristic_is_checkable(utterance)
-
-    def test_hedged_opinion_with_a_number_still_passes(self) -> None:
-        """A figure is checkable even when it is wrapped in a hedge."""
-        assert heuristic_is_checkable("I think revenue was up eight percent last quarter")
-
-    @pytest.mark.parametrize(
-        "utterance",
-        [
-            "Churn is four point one percent",
-            "New product revenue is up eight percent",
-            "We came in at eleven point four",
-        ],
-    )
-    def test_short_numeric_claims_are_not_dropped(self, utterance: str) -> None:
-        """Under the plain 8-word floor these vanish, and they are the whole point."""
-        assert len(utterance.split()) < 8
-        assert heuristic_is_checkable(utterance)
-
-    def test_short_prose_without_a_figure_is_still_dropped(self) -> None:
-        assert not heuristic_is_checkable("the pipeline looks healthy")
-
-
-class TestConflictGate:
-    """The second triage gate, and the reason arguments now get flagged.
-
-    The claim gate asks "is there a checkable factual assertion here". Pushback is short,
-    hedged, pronoun-heavy and often a question, so it answered no to every one of these —
-    and the second half of every argument died before reaching the model.
+    Deliberately narrow: it drops utterances with no proposition in them at all, and
+    nothing else. The regex gates it replaced tried to recognise *contradiction* from
+    surface form and were wrong in both directions — see the module docstring in
+    `app/pipeline/triage.py`.
     """
 
     @pytest.mark.parametrize(
         "utterance",
-        [
-            "No, that's not what the deck says.",
-            "Wait, didn't we say four point one percent?",
-            "I think that number is wrong.",
-            "That contradicts what Sarah just said.",
-            "Hold on, that's not right.",
-            "I disagree, mid-market is the problem.",
-            "That's not what I remember from the board deck.",
-            "We already decided to reprice, though.",
-            "Actually the deck says it's down.",
-            "No it isn't.",
-            "Since when? I thought we were closer to a hundred and forty.",
-        ],
+        ["yeah", "sounds good", "Yeah yeah ok sure", "um", "okay okay", "hi"],
     )
-    def test_pushback_reaches_the_model(self, utterance: str) -> None:
-        assert looks_like_conflict(utterance), utterance
+    def test_pure_backchannel_is_noise(self, utterance: str) -> None:
+        assert is_noise(utterance)
 
     @pytest.mark.parametrize(
         "utterance",
         [
-            # Reversals are far too common to fire on alone.
-            "but anyway back to the roadmap",
-            "actually let me share my screen",
-            "okay let's move on",
-            "yeah sounds good",
-            "so I think we should ship it next week",
-            "cool, thanks everyone",
-            # Two words. "No it isn't" clears the floor; a bare "no" must not.
-            "no",
-            "nope",
+            "New product revenue is up about eight percent this quarter",
+            # Back-channel words carrying a contradiction. The old gate dropped this.
+            "No it isn't.",
+            "no that's wrong",
+            # No negation, no contrast marker, still a flat contradiction.
+            "Enterprise is where we're bleeding.",
+            "I think that number is wrong.",
+            "What's driving it?",
         ],
     )
-    def test_ordinary_speech_does_not(self, utterance: str) -> None:
-        assert not looks_like_conflict(utterance), utterance
+    def test_anything_with_a_proposition_reaches_the_model(self, utterance: str) -> None:
+        assert not is_noise(utterance)
 
-    def test_conflict_shape_bypasses_the_claim_gate(self) -> None:
-        """Both gates are consulted, and either one is enough."""
-        pushback = "No, that's not what the deck says."
-        assert not heuristic_is_checkable(pushback), "the claim gate drops this"
-        assert looks_like_conflict(pushback), "the conflict gate is what saves it"
 
-    async def test_is_checkable_claim_routes_conflict_straight_through(
-        self, monkeypatch
-    ) -> None:
-        """It must not be handed to the classifier, which is prompted to say no.
+class TestConflictScan:
+    """The gate is a model now, and it must fail open."""
 
-        The fast classifier looks for factual assertions. Asked whether "no, that's not
-        what the deck says" is a checkable claim it answers no — correctly by its own
-        lights, and fatally for the feature.
-        """
-        called = False
+    @staticmethod
+    def _provider(monkeypatch, result, *, raises: Exception | None = None):
+        calls: list[dict] = []
 
-        def spy():
-            nonlocal called
-            called = True
-            return None
+        class Stub:
+            name = "stub"
 
-        monkeypatch.setattr("app.pipeline.triage.get_llm_provider", spy)
-        store.settings.triage.provider = TriageProviderName.CLAUDE
+            async def complete_json(self, **kwargs):
+                calls.append(kwargs)
+                if raises is not None:
+                    raise raises
+                return result
 
-        checkable, _ = await is_checkable_claim("No, that's not what the deck says.")
-        assert checkable
-        assert not called, "conflict-shaped speech must skip the classifier entirely"
+        monkeypatch.setattr("app.pipeline.triage.get_llm_provider", lambda: Stub())
+        return calls
+
+    async def test_yes_reaches_the_reasoner(self, monkeypatch) -> None:
+        self._provider(monkeypatch, {"worth_checking": True, "reason": "figures disagree"})
+        scan = await scan_for_conflict(
+            transcript="Sarah: Churn is four point one.", latest="No, it's flat."
+        )
+        assert scan
+        assert scan.reason == "figures disagree"
+
+    async def test_no_stops_it(self, monkeypatch) -> None:
+        self._provider(monkeypatch, {"worth_checking": False, "reason": "small talk"})
+        scan = await scan_for_conflict(transcript="", latest="Can everyone hear me okay?")
+        assert not scan
+
+    async def test_the_scan_sees_the_window_not_just_the_line(self, monkeypatch) -> None:
+        """A contradiction is a property of two statements. One line cannot show it."""
+        calls = self._provider(monkeypatch, {"worth_checking": True, "reason": "ok"})
+        await scan_for_conflict(
+            transcript="Sarah: Churn is four point one percent.", latest="It's flat."
+        )
+        assert "four point one" in calls[0]["user"], "the prior turn must be in the prompt"
+
+    async def test_a_broken_scan_fails_open(self, monkeypatch) -> None:
+        """A gate that fails closed silences the feature, invisibly. Never do that."""
+        from app.providers.llm import LLMError
+
+        self._provider(monkeypatch, None, raises=LLMError("boom"))
+        assert await scan_for_conflict(transcript="", latest="Churn is two percent.")
+
+    async def test_no_provider_fails_open(self, monkeypatch) -> None:
+        monkeypatch.setattr("app.pipeline.triage.get_llm_provider", lambda: None)
+        assert await scan_for_conflict(transcript="", latest="Churn is two percent.")
+
+    async def test_noise_never_reaches_the_model(self, monkeypatch) -> None:
+        calls = self._provider(monkeypatch, {"worth_checking": True, "reason": "ok"})
+        assert not await scan_for_conflict(transcript="", latest="yeah")
+        assert not calls, "back-channel must not cost an API call"
+
+    async def test_disabling_the_scan_reasons_on_everything(self, monkeypatch) -> None:
+        calls = self._provider(monkeypatch, {"worth_checking": False, "reason": "no"})
+        store.settings.ambient_scan = False
+        try:
+            assert await scan_for_conflict(transcript="", latest="Churn is two percent.")
+            assert not calls, "the gate is skipped entirely, not consulted and ignored"
+        finally:
+            store.settings.ambient_scan = True
 
 
 class TestRetrieval:

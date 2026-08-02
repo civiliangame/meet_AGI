@@ -134,6 +134,17 @@ class Settings(Schema):
     wake_word_enabled: bool = True
     autonomy: Autonomy = Autonomy.AUTO_POST
     secure_meeting: bool = Field(default=False, description=SECURE_MEETING_DESCRIPTION)
+    ambient_scan: bool = Field(
+        default=True,
+        description=(
+            "Run the cheap model as a gate in front of the contradiction reasoner. On by "
+            "default because it is much cheaper and the reasoner is the slow call.\n\n"
+            "Turn it **off** to reason over every non-back-channel utterance. That costs "
+            "real money and is the right move when contradictions are being missed and "
+            "you need to know whether the gate is what is eating them — it removes an "
+            "entire stage from the diagnosis."
+        ),
+    )
     interjection: InterjectionPolicy = Field(default_factory=InterjectionPolicy)
     voice: VoiceSettings = Field(default_factory=VoiceSettings)
     persona: PersonaSettings = Field(default_factory=PersonaSettings)
@@ -148,6 +159,7 @@ class SettingsUpdate(Schema):
     wake_word_enabled: bool | None = None
     autonomy: Autonomy | None = None
     secure_meeting: bool | None = Field(default=None, description=SECURE_MEETING_DESCRIPTION)
+    ambient_scan: bool | None = None
     interjection: InterjectionPolicy | None = None
     voice: VoiceSettings | None = None
     persona: PersonaSettings | None = None

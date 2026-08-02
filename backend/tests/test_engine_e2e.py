@@ -34,6 +34,19 @@ from app.store import store
 MEETING_ID = "mtg_test_e2e"
 
 
+def _line_under_review(user: str) -> str:
+    """The utterance the ambient prompt is currently pointed at.
+
+    The prompt hands the model the whole window and then marks where the conversation
+    is; this pulls that marker back out so the stub can quote it.
+    """
+    marker = "## Where the conversation is right now"
+    if marker not in user:
+        return "the claim under review"
+    tail = user.split(marker, 1)[1].strip().splitlines()
+    return tail[0].split(":", 1)[-1].strip() if tail else "the claim under review"
+
+
 class StubLLM:
     """Returns a canned structured response per prompt type. Records what it was asked."""
 
@@ -45,9 +58,9 @@ class StubLLM:
         self.calls: list[str] = []
 
     async def complete_json(self, *, system, user, schema, **_kwargs):
-        if "fast classifier" in system:
-            self.calls.append("triage")
-            return {"checkable": True, "confidence": 0.9}
+        if "fast gate" in system:
+            self.calls.append("scan")
+            return {"worth_checking": True, "reason": "stub says look"}
 
         if "answer them out loud" in system:
             self.calls.append("answer")
@@ -80,8 +93,13 @@ class StubLLM:
             "verdict": "contradiction",
             # Both halves of the conflict, verbatim. The engine drops a contradiction
             # that cannot produce these, so a stub without them tests nothing.
+            #
+            # `statement_b` echoes whichever line is under review, the way a real model
+            # would. A stub that returned a fixed pair would be deduplicated by the
+            # engine's contradiction fingerprint on the second utterance and the test
+            # would be silently exercising nothing.
             "statement_a": "New Product Line: $1.42M (-12.1% MoM).",
-            "statement_b": "new product revenue is up about eight percent this quarter",
+            "statement_b": _line_under_review(user),
             "confidence": 0.86,
             "headline": "Marcus's revenue claim conflicts with the Q3 board deck",
             "chat_alert": "⚠️ Kindred: that +8% is gross bookings. The Q3 deck (p.14) "
@@ -209,7 +227,7 @@ class TestAmbientLoop:
         engine.handle_final_segment(segment("yeah, sounds good"))
         await engine.drain()
 
-        assert engine.stub.calls == [], "the free heuristic must drop this before any call"
+        assert engine.stub.calls == [], "the noise guard must drop this before any call"
         assert not store.interjections_for(MEETING_ID)
         assert not chat.sent
 

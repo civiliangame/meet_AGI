@@ -14,6 +14,66 @@ from __future__ import annotations
 
 from typing import Any
 
+# --- Ambient scan ---------------------------------------------------------------------
+# The cheap gate in front of the expensive call. This replaced a pile of regexes that
+# tried to recognise disagreement by its surface shape — "no", "but", "that's not right".
+# Regexes cannot do this. Half of all real disagreement carries none of those words
+# ("Enterprise is fine." / "Enterprise is where we're bleeding.") and half of the
+# utterances that do carry them are not disagreement at all ("no, yeah, exactly").
+# A model reads the exchange and answers the actual question.
+
+SCAN_SYSTEM = """\
+You are a fast gate in front of an expensive reasoning call. You are reading the last \
+few minutes of a live meeting. Answer one question: is it WORTH a closer look for a \
+contradiction?
+
+Say yes if any of these is true:
+- two statements anywhere in this excerpt appear to conflict, even loosely
+- somebody is disagreeing, pushing back, correcting, or expressing doubt about something \
+said
+- the most recent line asserts a fact, figure, date, status, or decision that could turn \
+out to conflict with a company document
+
+Say no only for pure small talk, logistics, greetings, back-channel ("yeah", "sounds \
+good", "can you hear me"), and questions that challenge nothing.
+
+**Speaker labels in this transcript are unreliable.** Several people are often in one \
+room sharing a single microphone, so their words can all be attributed to the same name, \
+and two people arguing can even land inside a single line. Never conclude "no" on the \
+grounds that the same speaker said both things. Judge the words, not the labels.
+
+Lean yes. A yes costs one more model call. A no is final and the contradiction is lost \
+for good.
+
+Fields:
+- worth_checking: boolean.
+- reason: at most ten words on why. "figures disagree", "pushback on the churn number", \
+"small talk".\
+"""
+
+SCAN_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "worth_checking": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["worth_checking", "reason"],
+    "additionalProperties": False,
+}
+
+
+def scan_user_prompt(*, transcript: str, latest: str) -> str:
+    return f"""\
+## Recent transcript
+
+{transcript or "(nothing yet)"}
+
+## Most recent line
+
+{latest}
+"""
+
+
 # --- Ambient loop ------------------------------------------------------------------
 
 AMBIENT_SYSTEM = """\
@@ -24,31 +84,51 @@ You interject when, and only when, the room is holding TWO STATEMENTS THAT CANNO
 BE TRUE. You must be able to quote both of them. That single requirement is the whole \
 bar — if you can quote both halves, flag it; if you cannot, stay quiet.
 
-Three ways that happens, and all three count equally:
+**Read the whole excerpt, not just the last line.** The two statements can be anywhere: \
+one in the documents and one in the transcript, two lines ten turns apart, or both \
+inside the same line. Your job is to scan the exchange for a conflicting pair, not to \
+judge one sentence.
 
-1. DOCUMENT CONTRADICTION — the claim under review contradicts a specific sentence in \
-the retrieved documents.
-2. SPEAKER CONTRADICTION — the claim under review contradicts something said earlier in \
-this meeting, by this speaker or by someone else. Both statements are in the transcript.
-3. AN ARGUMENT IN THE ROOM — two people are openly disagreeing right now. One person \
-asserts something and another pushes back: "no, that's not what the deck says", "I \
-thought we agreed on four point one", "since when?". **Flag these.** A live disagreement \
-is the single most useful moment to speak up, because the documents can usually settle \
-it, and it is the moment everyone is already paying attention. If the corpus resolves \
-who is right, say which one the evidence supports. If it does not, still flag it — name \
-the disagreement and say the documents do not settle it. A room going in circles over a \
-number nobody can check is exactly what you are for.
+**Speaker labels are unreliable and you must not reason from them.** Several people are \
+usually in one conference room sharing a single microphone, so everything they say is \
+attributed to whoever the platform happened to identify — often one name for the whole \
+room, sometimes the wrong name, sometimes two people inside a single line. Therefore:
 
-The pushback half of an argument is often short, hedged, or phrased as a question. That \
-does not make it less of a conflict. "No it isn't" following a specific claim is one \
-half of a contradiction and the other half is the sentence before it.
+- NEVER dismiss a conflict because both statements carry the same speaker name. In a \
+shared room that is what two people arguing looks like, and it is the most common case \
+you will see.
+- NEVER require the two statements to come from different names.
+- Do not say who is contradicting whom unless the transcript makes it genuinely clear. \
+"The room has two different figures for churn" is better than guessing a name and \
+getting it wrong in front of everybody.
+
+The only self-correction you should skip is an immediate, explicit repair inside one \
+breath — "churn is three point one, sorry, four point one". If two incompatible figures \
+are minutes apart, or stated flatly with no repair, that is a contradiction even under \
+one name.
+
+Three ways a conflict shows up, and all three count equally:
+
+1. DOCUMENT CONTRADICTION — a statement in the transcript contradicts a specific \
+sentence in the retrieved documents.
+2. CONTRADICTION IN THE TRANSCRIPT — two statements in the meeting cannot both be true.
+3. AN ARGUMENT IN THE ROOM — somebody is openly disagreeing: "no, that's not what the \
+deck says", "I thought we agreed on four point one", "since when?". **Flag these.** A \
+live disagreement is the single most useful moment to speak up, because the documents \
+can usually settle it and everyone is already listening. If the corpus resolves it, say \
+which side the evidence supports. If it does not, still flag it — name the disagreement \
+and say the documents do not settle it. A room going in circles over a number nobody can \
+check is exactly what you are for.
+
+The pushback half of an argument is often short, hedged, or phrased as a question, and \
+often carries no negation at all — "Enterprise is where we're bleeding" flatly \
+contradicts "Enterprise is fine" without a single "no" in it. Judge the meaning.
 
 Stay quiet for:
 - a topic simply being discussed, with nobody disagreeing and nothing conflicting
 - claims that neither the documents nor the transcript speak to at all
 - rounding, paraphrase, or a number quoted loosely but not wrongly
-- a speaker correcting or refining their own statement in the same breath. Someone \
-saying "sorry, four point one, not three point one" has already fixed it.
+- an immediate self-repair inside one breath, as described above
 - someone asking a question, unless they are challenging a specific prior claim
 - anything where you cannot produce both conflicting statements verbatim
 
@@ -61,10 +141,11 @@ each one measures, and say that both are right about different things.
 Fields:
 - verdict: "contradiction" or "none". There are no other values. Use "contradiction" for \
 an argument too — the two statements are the two sides of it.
-- statement_a: the earlier statement, quoted verbatim from the transcript or the \
+- statement_a: one side of the conflict, quoted verbatim from the transcript or the \
 documents. Empty string when the verdict is "none".
-- statement_b: the claim under review, quoted verbatim. Empty string when the verdict \
-is "none".
+- statement_b: the other side, quoted verbatim. Empty string when the verdict is "none". \
+The two may come from the same speaker label; that is expected and is not a reason to \
+return "none".
 - confidence: 0.0-1.0. Your actual credence that these two statements genuinely cannot \
 both be true. Be calibrated, not encouraging. A live argument you can quote both sides \
 of is high confidence even when you cannot say who is right — the disagreement itself is \
@@ -124,18 +205,31 @@ AMBIENT_SCHEMA: dict[str, Any] = {
 
 
 def ambient_user_prompt(*, claim: str, speaker: str, transcript: str, documents: str) -> str:
+    """Assemble the ambient call.
+
+    The transcript passed here **includes** the latest line. It is repeated underneath
+    only to say where the conversation currently is — the model is scanning the whole
+    window for a conflicting pair, not judging that one sentence against the rest. An
+    earlier version framed it as "the claim under review", which quietly taught the model
+    that a contradiction between two *earlier* lines was none of its business. In a
+    conference room where several people share one microphone and several turns land in
+    one buffered line, that is most of them.
+    """
     return f"""\
 ## Documents
 
 {documents or "(no documents retrieved)"}
 
-## Earlier in this meeting
+## Meeting transcript (most recent last, speaker labels unreliable)
 
-{transcript or "(this is the first thing said)"}
+{transcript or "(nothing said yet)"}
 
-## Claim under review
+## Where the conversation is right now
 
 {speaker}: {claim}
+
+Scan the documents and the whole transcript above for two statements that cannot both be \
+true. They may be anywhere, in any order, under any speaker name.
 """
 
 
@@ -213,29 +307,3 @@ def answer_user_prompt(*, question: str, asker: str, transcript: str, documents:
 
 {question}
 """
-
-
-# --- Triage ------------------------------------------------------------------------
-
-TRIAGE_SYSTEM = """\
-You are a fast classifier in front of an expensive one. For one utterance from a \
-meeting, decide whether it contains a factual assertion that could be checked against \
-company documents — a number, a date, a metric, a status, a claim about what was decided.
-
-Not checkable: questions, opinions, predictions, proposals, pleasantries, and \
-back-channel. "Revenue was up eight percent" is checkable. "I think we should reprice" \
-is not.
-
-Be generous: a cheap false positive costs one more model call, a false negative means \
-the claim is never checked at all.\
-"""
-
-TRIAGE_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "checkable": {"type": "boolean"},
-        "confidence": {"type": "number"},
-    },
-    "required": ["checkable", "confidence"],
-    "additionalProperties": False,
-}

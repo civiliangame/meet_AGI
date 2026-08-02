@@ -15,7 +15,13 @@ never reach here.
     │                          retrieve → answer → speak → type into chat
     │
     └───────────── no ──────▶ AMBIENT MODE
-                               triage → retrieve → look for a contradiction → gate → type
+                               scan → retrieve → look for a contradiction → gate → type
+
+The ambient half re-reads the whole recent window every time rather than judging the
+newest sentence against history. That is what makes it work in a conference room: when
+several people share one microphone the platform labels them all the same, several turns
+land inside a single buffered utterance, and both halves of a contradiction are
+routinely already "earlier". Nothing downstream may reason from speaker identity.
 
 Work is dispatched as a task per utterance and serialized behind a per-meeting lock, so
 reasoning never blocks transcript ingestion and two interjections can never interleave.
@@ -34,6 +40,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 import time
 
 from ..audio import AudioClip
@@ -61,10 +68,13 @@ from ..video import card
 from . import reason
 from .context import ConversationMemory, Turn
 from .gate import InterjectionGate
-from .triage import is_checkable_claim
+from .triage import scan_for_conflict
 from .wake import StopDetector, WakeDetector, build_detector, build_stop_detector
 
 log = logging.getLogger(__name__)
+
+_WORD = re.compile(r"\w+")
+"""Tokenizer for the contradiction fingerprint. See `_fingerprint`."""
 
 WAKE_DEBOUNCE_SECONDS = 3.0
 """Ignore a second wake word this soon after the last. DESIGN.md §5."""
@@ -108,6 +118,8 @@ class PipelineEngine:
         self._last_wake: dict[str, float] = {}
         self._last_stop: dict[str, float] = {}
         self._pending: dict[str, _PendingQuestion] = {}
+        self._flagged: dict[str, set[str]] = {}
+        """Contradictions already announced, so a re-scanned window stays quiet."""
         self._detector: WakeDetector | None = None
         self._detector_key: tuple[str, tuple[str, ...]] | None = None
         self._stop_detector: StopDetector | None = None
@@ -389,12 +401,18 @@ class PipelineEngine:
         # and "the model says none every time" all looked identical from the outside —
         # which is exactly the position this feature was debugged from. One line per
         # utterance is cheap next to the model call it is reporting on.
-        checkable, _ = await is_checkable_claim(segment.text)
-        if not checkable:
-            log.debug("[%s] ambient skip (not checkable): %r", meeting_id, quote)
+        scan = await scan_for_conflict(
+            transcript=self.memory.for_meeting(meeting_id).render(), latest=segment.text
+        )
+        if not scan:
+            log.info("[%s] ambient skip (%s): %r", meeting_id, scan.reason, quote)
             return
 
-        transcript = self.memory.for_meeting(meeting_id).render(exclude_segment_id=segment.id)
+        # The *whole* window, latest line included. The model is hunting a conflicting
+        # pair anywhere in the exchange, and excluding the newest line would hide the
+        # commonest case in a shared conference room: two people arguing inside a single
+        # buffered utterance.
+        transcript = self.memory.for_meeting(meeting_id).render()
         verdict = await reason.check_claim(
             claim=segment.text, speaker=segment.speaker_name, transcript=transcript
         )
@@ -409,6 +427,19 @@ class PipelineEngine:
             verdict.statement_a[:60],
             verdict.statement_b[:60],
         )
+
+        # Now that the model re-reads the whole window on every utterance, it finds the
+        # same conflict again on the next line, and the next. The cooldown alone would
+        # turn that into "one interjection, then twenty suppressed" and the *next*,
+        # genuinely new contradiction would land in the middle of that noise. Fingerprint
+        # the pair instead, so a conflict is announced once and a new one is never
+        # rationed on account of an old one.
+        fingerprint = self._fingerprint(verdict)
+        seen = self._flagged.setdefault(meeting_id, set())
+        if fingerprint in seen:
+            log.info("[%s] already flagged this pair; staying quiet", meeting_id)
+            return
+        seen.add(fingerprint)
 
         decision = self.gate.check(meeting_id, verdict.confidence)
         if not decision:
@@ -452,6 +483,20 @@ class PipelineEngine:
             )
 
     # --- shared helpers --------------------------------------------------------------
+
+    @staticmethod
+    def _fingerprint(verdict) -> str:
+        """Identify a conflicting pair, so the same one is not announced twice.
+
+        Order-insensitive and loosely normalized: the model re-quotes the same two
+        statements slightly differently from one turn to the next — trailing
+        punctuation, a clipped opening word — and an exact-string key would treat each
+        rewording as a fresh contradiction.
+        """
+        def key(text: str) -> str:
+            return " ".join(_WORD.findall(text.casefold()))[:160]
+
+        return "|".join(sorted((key(verdict.statement_a), key(verdict.statement_b))))
 
     def _record(self, meeting_id: str, interjection: Interjection) -> None:
         store.interjections_for(meeting_id).append(interjection)
@@ -562,6 +607,7 @@ class PipelineEngine:
         self._last_wake.pop(meeting_id, None)
         self._last_stop.pop(meeting_id, None)
         self._pending.pop(meeting_id, None)
+        self._flagged.pop(meeting_id, None)
         self._by_meeting.pop(meeting_id, None)
         chat_router.detach(meeting_id)
         card.forget(meeting_id)
@@ -573,6 +619,7 @@ class PipelineEngine:
         self._last_wake.clear()
         self._last_stop.clear()
         self._pending.clear()
+        self._flagged.clear()
         self._by_meeting.clear()
         self._detector = None
         self._detector_key = None
