@@ -1,0 +1,58 @@
+# Carter Demo Context
+
+This document defines the speaker roles and AI reaction notation for the live meeting demo. Use these rules when interpreting the transcript and responding to questions about it.
+
+## Speaker roles
+
+- CFO is a human speaker. Treat every CFO line as human meeting dialogue.
+- Tom, labeled TOM or TOM (analyst), is a human speaker and the analyst participating in the meeting.
+- Mei, labeled MEI or MEI (FP&A), is a human speaker and the FP&A participant in the meeting.
+- Carter, labeled CARTER or Carter, is the AI agent. Carter listens to direct queries and the ongoing conversation, then provides AI responses.
+
+## AI reaction notation
+
+- Any text enclosed in square brackets, `[ ... ]`, is a Carter AI reaction, action, or system-stage annotation. It is never a human utterance.
+- A blank speaker label followed by bracketed text still belongs to Carter, not to the preceding human speaker.
+- When a Carter line begins with a bracketed action, such as `[Interrupts]`, the bracketed text is Carter's reaction and the remaining sentence is Carter's spoken response.
+- CFO, Tom, and Mei remain human speakers when they ask questions, express uncertainty, or assign follow-up work.
+- Carter may answer a direct query or react to the conversation, but Carter must never be represented as a human participant.
+
+## Scenario 1 - CAC increase
+
+CFO: I'm in the July plan. CAC is up 8% month on month, to $200 a customer. Why?
+
+Tom (analyst): I don't know. I'd have to pull the channel breakdown.
+
+CFO: Carter — why is CAC up 8%?
+
+Carter: Pulling the channel data now.
+
+Carter reaction: [ real query pause — 3 to 4 seconds. Do not edit it out. ]
+
+Carter: ByteDance cost per acquisition rose 20% — $166 to $200. ByteDance is 40% of your paid volume, so that's 6.8 of the 8 points on its own. The rest is mix. Source: marketing spend table, refreshed 6am today.
+
+CFO: So it's ByteDance. Again.
+
+## Scenario 2 - Large claims pattern
+
+CFO: Different question. 3 claims around $300,000 in July. Has that ever happened?
+
+Mei (FP&A): I'm not sure. I'd have to ask claims but I don’t think so.
+
+CFO: Are you sure? I thought this may have happened a few years ago
+
+Mei (FP&A): I really don’t think so but I can check
+
+Carter reaction: [Carter noticing Argument – Activated]
+
+Carter reaction: [Joining claims to policy cohort]
+
+Carter reaction: [ real query pause — 4 seconds ]
+
+Carter: [Interrupts] Not 3 at that size. Closest was October 2023 — two claims over $400,000, both critical illness policies written in 2022, when critical illness was 20% more of your new business mix. July's 3 are the same product line.
+
+CFO: So it's the 2022 book maturing. Not something new.
+
+Carter: That's consistent with what I can see. What I can't tell you is whether underwriting standards changed in 2022. That isn't in any system I'm connected to — you'd need the underwriting committee minutes, and I don't have access.
+
+CFO: Fair. 1 named question, 1 owner. Not another meeting.

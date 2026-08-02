@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClaimCard } from "@/components/session/ClaimCard";
+import { ExecutiveSummary } from "@/components/session/ExecutiveSummary";
 import { SourcesView } from "@/components/session/SourcesView";
 import { TranscriptView } from "@/components/session/TranscriptView";
 import { Avatar, Empty, Spinner } from "@/components/primitives";
 import { api } from "@/lib/api/client";
 import { absoluteTime, duration, relativeTime } from "@/lib/format";
+import { deriveSessionReview } from "@/lib/review";
 import { connectMeeting, type LiveConnection } from "@/lib/api/ws";
 import type { AgentState, MeetingBundle, TranscriptSegment } from "@/lib/api/types";
 
@@ -116,6 +118,7 @@ export default function SessionPage() {
   }
 
   const { meeting, transcript, interjections, sources } = bundle;
+  const review = deriveSessionReview(bundle);
   const state = AGENT_STATE_STYLE[agentState ?? "idle"] ?? AGENT_STATE_STYLE.idle;
 
   const tabs: [Tab, string, number][] = [
@@ -190,6 +193,13 @@ export default function SessionPage() {
 
         {isLive ? <LiveControls meetingId={id} muted={agentState === "muted"} onChange={load} /> : null}
       </header>
+
+      <ExecutiveSummary
+        review={review}
+        onJumpToTranscript={(segmentId) =>
+          jump("transcript", `segment-${segmentId}`, () => setHighlightedSegment(segmentId))
+        }
+      />
 
       <nav className="mb-5 flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
         {tabs.map(([key, label, count]) => (
