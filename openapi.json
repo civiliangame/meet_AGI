@@ -2993,6 +2993,81 @@
         "title": "SpeakRequest",
         "type": "object"
       },
+      "SpeechInterruptedData": {
+        "description": "Kindred was cut off \u2014 the kill phrase, or the interrupt endpoint.",
+        "properties": {
+          "cancelled_tasks": {
+            "default": 0,
+            "description": "Reasoning calls abandoned before they could produce audio.",
+            "title": "Cancelled Tasks",
+            "type": "integer"
+          },
+          "dropped_utterances": {
+            "default": 0,
+            "description": "Queued clips discarded, including the one mid-playback.",
+            "title": "Dropped Utterances",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Who or what stopped it: a speaker's display name, or 'dashboard'.",
+            "examples": [
+              "Marcus Chen"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "dropped_utterances",
+          "cancelled_tasks"
+        ],
+        "title": "SpeechInterruptedData",
+        "type": "object"
+      },
+      "SpeechInterruptedEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SpeechInterruptedData"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "description": "Monotonic per connection. A gap means dropped frames.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "speech.interrupted",
+            "default": "speech.interrupted",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "meeting_id",
+          "ts",
+          "type",
+          "data"
+        ],
+        "title": "SpeechInterruptedEvent",
+        "type": "object"
+      },
       "TranscriptFinalEvent": {
         "properties": {
           "data": {
@@ -3637,6 +3712,7 @@
                       "snapshot": "#/components/schemas/SnapshotEvent",
                       "speech.answered": "#/components/schemas/AnsweredEvent",
                       "speech.clarification_asked": "#/components/schemas/ClarificationAskedEvent",
+                      "speech.interrupted": "#/components/schemas/SpeechInterruptedEvent",
                       "speech.question_captured": "#/components/schemas/QuestionCapturedEvent",
                       "speech.wake_detected": "#/components/schemas/WakeDetectedEvent",
                       "transcript.final": "#/components/schemas/TranscriptFinalEvent",
@@ -3686,6 +3762,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/AnsweredEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SpeechInterruptedEvent"
                     },
                     {
                       "$ref": "#/components/schemas/DocumentStatusChangedEvent"
@@ -5716,7 +5795,7 @@
     },
     "/api/meetings/{meeting_id}/interrupt": {
       "post": {
-        "description": "Returns the utterances that were dropped. The clip currently playing finishes \u2014 audio already handed to Recall cannot be pulled back. True mid-sentence barge-in needs streamed Output Media.",
+        "description": "The dashboard's equivalent of saying **\"AGI, stop talking\"** out loud. Drops the speech queue, cancels the reasoning that was about to produce more speech, and retracts the clip currently playing through Recall's stop-audio endpoint \u2014 so this really does stop it mid-word, not at the end of the sentence.\n\nReturns the utterances that were dropped, the one that was playing included.",
         "operationId": "interrupt_api_meetings__meeting_id__interrupt_post",
         "parameters": [
           {
@@ -5785,7 +5864,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Drop everything Kindred is waiting to say",
+        "summary": "Cut Kindred off mid-sentence",
         "tags": [
           "speech"
         ]

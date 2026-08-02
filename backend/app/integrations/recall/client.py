@@ -233,6 +233,12 @@ class RecallClient:
                     "url": webhook_url,
                     "events": [
                         "transcript.data",
+                        # Partials never wake Kindred — they revise as they arrive and a
+                        # half-heard "hey a g..." is exactly the false wake DESIGN.md §12
+                        # warns about. They are subscribed for the kill phrase, which is
+                        # the one signal worth acting on before the sentence is finished,
+                        # and for the live transcript line in the dashboard.
+                        "transcript.partial_data",
                         "participant_events.join",
                         "participant_events.leave",
                         "participant_events.speech_on",
@@ -286,6 +292,18 @@ class RecallClient:
             f"/bot/{bot_id}/output_audio/",
             json={"kind": "mp3", "b64_data": b64_mp3(mp3)},
         )
+
+    async def stop_output_audio(self, bot_id: str) -> None:
+        """Cut off whatever the bot is currently playing.
+
+        `DELETE /bot/{id}/output_audio/`. This is what makes the "AGI stop talking" kill
+        phrase a real interruption rather than a promise to be quiet after the current
+        sentence — audio already handed to Recall is dropped mid-clip.
+
+        Same `automatic_audio_output` prerequisite as `output_audio`, which `create_bot`
+        always satisfies.
+        """
+        await self._request("DELETE", f"/bot/{bot_id}/output_audio/")
 
     async def output_video(self, bot_id: str, jpeg: bytes) -> None:
         """Replace the image on the bot's camera tile.

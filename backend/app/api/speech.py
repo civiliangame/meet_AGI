@@ -14,6 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from ..errors import bad_request, conflict, not_found
+from ..pipeline import handle_stop
 from ..providers.voice import VoiceError, get_sample_clips
 from ..runtime import Runtime, get_runtime
 from ..schemas import AgentState, Meeting
@@ -148,14 +149,16 @@ def list_utterances(meeting_id: str, runtime: Runtime = Depends(get_runtime)) ->
 @router.post(
     "/meetings/{meeting_id}/interrupt",
     response_model=list[Utterance],
-    summary="Drop everything Kindred is waiting to say",
+    summary="Cut Kindred off mid-sentence",
     description=(
-        "Returns the utterances that were dropped. The clip currently playing finishes — "
-        "audio already handed to Recall cannot be pulled back. True mid-sentence "
-        "barge-in needs streamed Output Media."
+        "The dashboard's equivalent of saying **\"AGI, stop talking\"** out loud. Drops "
+        "the speech queue, cancels the reasoning that was about to produce more speech, "
+        "and retracts the clip currently playing through Recall's stop-audio endpoint — "
+        "so this really does stop it mid-word, not at the end of the sentence.\n\n"
+        "Returns the utterances that were dropped, the one that was playing included."
     ),
 )
-def interrupt(meeting_id: str, runtime: Runtime = Depends(get_runtime)) -> list[Utterance]:
+async def interrupt(meeting_id: str, _runtime: Runtime = Depends(get_runtime)) -> list[Utterance]:
     if meeting_id not in store.meetings:
         raise not_found("Meeting", meeting_id)
-    return runtime.speech.clear(meeting_id)
+    return await handle_stop(meeting_id, source="dashboard", force=True)

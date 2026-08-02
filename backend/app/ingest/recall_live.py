@@ -14,12 +14,24 @@ talking:
 - terminal punctuation (`.`, `?`, `!`) flushes immediately — the provider has told us
   the sentence is over, and waiting longer only adds latency to the wake response;
 - otherwise a short silence gap flushes, which is the literal reading of "after every
-  person finishes speaking".
+  person finishes speaking";
+- **and a hard ceiling flushes regardless.** This one is not an optimization. A silence
+  gap only ever arrives if there is silence, and in a real meeting with an open mic
+  there is not: breathing, keyboards, someone else's dog, and the next sentence all
+  land inside the gap and reset it. The buffer then grows without ever flushing and
+  Kindred answers nothing at all until somebody mutes — which is precisely the bug this
+  ceiling exists to kill. Once a wake phrase is in the buffer both windows tighten,
+  because at that point somebody is visibly waiting for an answer.
 
 Partials go to the frontend as they arrive so the live transcript line still moves,
-but only the flushed utterance reaches the pipeline. That is DESIGN.md §5's rule about
-never waking on a partial, enforced at the ingest boundary rather than trusted to
-every consumer.
+and only the flushed utterance reaches the reasoning pipeline. That is DESIGN.md §5's
+rule about never waking on a partial, enforced at the ingest boundary rather than
+trusted to every consumer.
+
+**The kill phrase is the deliberate exception.** "AGI, stop talking" is checked against
+partials, before buffering, on every event. Acting a second early on a phrase whose only
+effect is silence is the right trade; acting a second late means Kindred talks over the
+person telling it to stop.
 """
 
 from __future__ import annotations
@@ -27,6 +39,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -68,6 +81,11 @@ class _Buffer:
     start_ms: int | None = None
     end_ms: int = 0
     flusher: asyncio.Task[None] | None = None
+    ceiling: asyncio.Task[None] | None = None
+    """Fires once, on a wall clock, whatever the words are doing. See the module note."""
+    opened_at: float = 0.0
+    woken_at: float | None = None
+    """When a wake phrase first appeared in this buffer, if it has."""
 
     @property
     def text(self) -> str:
@@ -84,8 +102,18 @@ def _ms(timestamp: Any) -> int | None:
 class RecallLiveIngest:
     """Consumes Recall real-time events for every live meeting."""
 
-    def __init__(self, *, silence_ms: int = 1000) -> None:
+    def __init__(
+        self,
+        *,
+        silence_ms: int = 1000,
+        wake_silence_ms: int = 400,
+        max_utterance_ms: int = 9000,
+        wake_max_ms: int = 4500,
+    ) -> None:
         self._silence = silence_ms / 1000
+        self._wake_silence = wake_silence_ms / 1000
+        self._max_utterance = max_utterance_ms / 1000
+        self._wake_max = wake_max_ms / 1000
         self._buffers: dict[tuple[str, str], _Buffer] = {}
 
     # --- event routing ---------------------------------------------------------------
@@ -142,14 +170,26 @@ class RecallLiveIngest:
         key = (meeting_id, participant_id)
         buffer = self._buffers.get(key)
         if buffer is None:
-            buffer = _Buffer(participant_id=participant_id, speaker_name=speaker_name)
+            buffer = _Buffer(
+                participant_id=participant_id,
+                speaker_name=speaker_name,
+                opened_at=time.monotonic(),
+            )
             self._buffers[key] = buffer
         buffer.speaker_name = speaker_name or buffer.speaker_name
+
+        incoming = join_words(words)
+
+        # Kill phrase first, and against the buffer *plus* what just arrived, so
+        # "AGI," landing in one event and "stop talking" in the next still fires. This
+        # runs on partials too — the whole point is not to wait for the sentence.
+        if await self._check_stop(meeting_id, key, buffer, incoming):
+            return
 
         if not final:
             # Partials are for the frontend's live line only. They are never buffered,
             # because a revised partial would double up words in the final utterance.
-            self._publish(meeting_id, buffer, join_words(words), is_final=False)
+            self._publish(meeting_id, buffer, incoming, is_final=False)
             return
 
         buffer.words.extend(words)
@@ -160,27 +200,132 @@ class RecallLiveIngest:
         text = buffer.text
         self._publish(meeting_id, buffer, text, is_final=False)
 
-        self._cancel_flush(buffer)
-        if text.endswith(TERMINAL_PUNCTUATION):
-            await self._flush(meeting_id, key)
-        else:
-            buffer.flusher = asyncio.create_task(
-                self._flush_after_silence(meeting_id, key), name=f"flush:{meeting_id}"
+        if buffer.woken_at is None and self._sees_wake(text):
+            buffer.woken_at = time.monotonic()
+            log.info(
+                "[%s] wake phrase in progress from %s; tightening the flush window",
+                meeting_id,
+                buffer.speaker_name,
             )
 
-    async def _flush_after_silence(self, meeting_id: str, key: tuple[str, str]) -> None:
+        self._cancel_silence(buffer)
+        if text.endswith(TERMINAL_PUNCTUATION):
+            await self._flush(meeting_id, key)
+            return
+
+        # Only the silence timer was cancelled above. The ceiling deliberately survives
+        # incoming words — restarting it on every word is what the silence timer already
+        # does, and it is exactly the behaviour that lets an open mic postpone the flush
+        # forever.
+        self._arm_ceiling(meeting_id, key, buffer)
+        buffer.flusher = asyncio.create_task(
+            self._flush_after_silence(meeting_id, key, buffer), name=f"flush:{meeting_id}"
+        )
+
+    async def _check_stop(
+        self, meeting_id: str, key: tuple[str, str], buffer: _Buffer, incoming: str
+    ) -> bool:
+        """Fire the kill phrase if it is in this speaker's stream. Returns whether it was.
+
+        On a hit the buffer is thrown away rather than flushed: "AGI, stop talking" is
+        not a question to answer and not a claim to check, and letting it through as an
+        ordinary utterance would have the pipeline reasoning about the very sentence
+        that just told it to stop.
+        """
+        from ..pipeline.engine import engine
+
+        candidate = f"{buffer.text} {incoming}".strip()
+        if not candidate:
+            return False
         try:
-            await asyncio.sleep(self._silence)
+            match = engine.stop_match(candidate)
+        except Exception:
+            log.exception("stop-phrase matching failed")
+            return False
+        if match is None:
+            return False
+
+        self._drop(key)
+        fired = await engine.handle_stop(meeting_id, source=buffer.speaker_name)
+        if fired:
+            log.info(
+                "[%s] kill phrase from %s: %r",
+                meeting_id,
+                buffer.speaker_name,
+                match.matched_text,
+            )
+        return True
+
+    @staticmethod
+    def _sees_wake(text: str) -> bool:
+        from ..pipeline.engine import engine
+
+        try:
+            return engine.sees_wake(text)
+        except Exception:
+            log.exception("wake pre-scan failed")
+            return False
+
+    def _arm_ceiling(self, meeting_id: str, key: tuple[str, str], buffer: _Buffer) -> None:
+        """Guarantee this buffer flushes, whether or not the speaker ever pauses."""
+        if buffer.ceiling is not None and not buffer.ceiling.done():
+            return
+        buffer.ceiling = asyncio.create_task(
+            self._flush_at_ceiling(meeting_id, key, buffer), name=f"ceiling:{meeting_id}"
+        )
+
+    def _deadline(self, buffer: _Buffer) -> float:
+        """Seconds from now until this buffer must flush no matter what."""
+        latest = buffer.opened_at + self._max_utterance
+        if buffer.woken_at is not None:
+            latest = min(latest, buffer.woken_at + self._wake_max)
+        return max(latest - time.monotonic(), 0.0)
+
+    async def _flush_at_ceiling(
+        self, meeting_id: str, key: tuple[str, str], buffer: _Buffer
+    ) -> None:
+        try:
+            # Re-checked in a loop rather than slept once, because a wake phrase heard
+            # after the ceiling was armed shortens the deadline it is waiting on.
+            while (remaining := self._deadline(buffer)) > 0:
+                await asyncio.sleep(remaining)
+        except asyncio.CancelledError:
+            return
+        if self._buffers.get(key) is not buffer:
+            return
+        log.info(
+            "[%s] flushing %s at the ceiling — still talking, no gap to wait for",
+            meeting_id,
+            buffer.speaker_name,
+        )
+        await self._flush(meeting_id, key)
+
+    async def _flush_after_silence(
+        self, meeting_id: str, key: tuple[str, str], buffer: _Buffer
+    ) -> None:
+        # The wake path only ever shortens the wait. A deployment that has tuned the
+        # ordinary gap below the wake gap wants the tighter of the two, not the looser.
+        gap = self._silence
+        if buffer.woken_at is not None:
+            gap = min(gap, self._wake_silence)
+        try:
+            await asyncio.sleep(gap)
         except asyncio.CancelledError:
             return
         await self._flush(meeting_id, key)
+
+    def _drop(self, key: tuple[str, str]) -> None:
+        """Discard a buffer and its timers without emitting anything."""
+        buffer = self._buffers.pop(key, None)
+        if buffer is not None:
+            self._cancel_timers(buffer)
 
     async def _flush(self, meeting_id: str, key: tuple[str, str]) -> None:
         """Emit the buffered words as one finalized utterance and run the pipeline."""
         buffer = self._buffers.pop(key, None)
         if buffer is None:
             return
-        self._cancel_flush(buffer)
+        self._cancel_timers(buffer)
 
         text = buffer.text
         if not text:
@@ -202,10 +347,24 @@ class RecallLiveIngest:
         handle_final_segment(segment)
 
     @staticmethod
-    def _cancel_flush(buffer: _Buffer) -> None:
+    def _cancel_silence(buffer: _Buffer) -> None:
+        """Stop the gap timer. The ceiling is untouched — that is the whole point."""
         if buffer.flusher is not None and not buffer.flusher.done():
             buffer.flusher.cancel()
         buffer.flusher = None
+
+    @staticmethod
+    def _cancel_timers(buffer: _Buffer) -> None:
+        """Stop both timers. The buffer is done with, one way or another.
+
+        Skips the running task: `_flush_at_ceiling` calls `_flush`, which lands here,
+        and a task that cancels itself never returns to log what it did.
+        """
+        for task in (buffer.flusher, buffer.ceiling):
+            if task is not None and not task.done() and task is not asyncio.current_task():
+                task.cancel()
+        buffer.flusher = None
+        buffer.ceiling = None
 
     def _publish(self, meeting_id: str, buffer: _Buffer, text: str, *, is_final: bool) -> None:
         if not text:
@@ -292,11 +451,31 @@ class RecallLiveIngest:
     def forget(self, meeting_id: str) -> None:
         for key in [k for k in self._buffers if k[0] == meeting_id]:
             buffer = self._buffers.pop(key)
-            self._cancel_flush(buffer)
+            self._cancel_timers(buffer)
 
 
 ingest = RecallLiveIngest()
 
 
-def configure(silence_ms: int) -> None:
+def configure(
+    silence_ms: int,
+    *,
+    wake_silence_ms: int | None = None,
+    max_utterance_ms: int | None = None,
+    wake_max_ms: int | None = None,
+) -> None:
+    """Retune the utterance-boundary windows. Called once at startup from config."""
     ingest._silence = silence_ms / 1000
+    if wake_silence_ms is not None:
+        ingest._wake_silence = wake_silence_ms / 1000
+    if max_utterance_ms is not None:
+        ingest._max_utterance = max_utterance_ms / 1000
+    if wake_max_ms is not None:
+        ingest._wake_max = wake_max_ms / 1000
+    log.info(
+        "transcript windows: gap %dms (%dms after a wake), ceiling %.1fs (%.1fs after a wake)",
+        silence_ms,
+        ingest._wake_silence * 1000,
+        ingest._max_utterance,
+        ingest._wake_max,
+    )

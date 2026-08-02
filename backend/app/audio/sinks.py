@@ -47,6 +47,16 @@ class AudioSink(Protocol):
         """Hand the clip off for playback. Returns before playback finishes."""
         ...
 
+    async def stop(self) -> None:
+        """Cut off whatever is playing right now.
+
+        The kill phrase depends on this. `play()` returns once the clip is *accepted*,
+        so without a way to retract it the only interruption available is "stop after
+        the current sentence" — which is not what someone saying "AGI, stop talking"
+        means.
+        """
+        ...
+
 
 class RecallAudioSink:
     """Plays into a live meeting through a Recall bot."""
@@ -79,6 +89,10 @@ class RecallAudioSink:
             "bot %s playing %sms clip %s", self._bot_id, clip.duration_ms, clip.clip_id or "<tts>"
         )
 
+    async def stop(self) -> None:
+        await self._client.stop_output_audio(self._bot_id)
+        logger.info("bot %s audio output cut", self._bot_id)
+
 
 class NullAudioSink:
     """Accepts clips and drops them. Always ready.
@@ -97,3 +111,6 @@ class NullAudioSink:
 
     async def play(self, clip: AudioClip) -> None:
         logger.info("[%s] would play %sms: %s", self._label, clip.duration_ms, clip.text)
+
+    async def stop(self) -> None:
+        logger.info("[%s] would cut audio output", self._label)

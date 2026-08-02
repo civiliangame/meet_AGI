@@ -9,12 +9,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.pipeline.wake import WakeDetector, normalize
+from app.pipeline.wake import StopDetector, WakeDetector, normalize
 
 
 @pytest.fixture
 def detector() -> WakeDetector:
     return WakeDetector("Hey AGI", ["Kindred"])
+
+
+@pytest.fixture
+def stopper() -> StopDetector:
+    return StopDetector("Hey AGI", ["Kindred"])
 
 
 class TestMatches:
@@ -89,6 +94,108 @@ class TestQuestionExtraction:
         match = detector.match("Hey AGI, one sec")
         assert match is not None
         assert not match.has_question
+
+
+class TestFuzzyVariants:
+    """The homophone list is never complete. STT invents spellings nobody wrote down."""
+
+    @pytest.mark.parametrize(
+        "utterance",
+        [
+            "Hey Ajai, what was our growth last quarter?",
+            "Hey Agie, what does the deck say?",
+            "hey hgi what happened to churn",
+            "Hey Aggi, what is the revenue number?",
+        ],
+    )
+    def test_wakes_on_an_unlisted_mangling(self, detector: WakeDetector, utterance: str) -> None:
+        match = detector.match(utterance)
+        assert match is not None, utterance
+        assert match.has_question
+
+    @pytest.mark.parametrize(
+        "utterance",
+        [
+            # Close to the wake word but not close enough, and none of them addressed.
+            "hey Andy the numbers came in this morning",
+            "hey Gigi has the deck landed",
+            "the agenda item is revenue",
+        ],
+    )
+    def test_does_not_invent_a_wake(self, detector: WakeDetector, utterance: str) -> None:
+        assert detector.match(utterance) is None, utterance
+
+
+class TestQuestionShape:
+    """"Kick in when it hears a question it can answer" — this is that judgment."""
+
+    @pytest.mark.parametrize(
+        "utterance",
+        [
+            "Hey AGI, what's the answer to my previous question?",
+            "Hey AGI, what was our growth last quarter?",
+            "Hey AGI, remind me what churn was",
+            # Two words is enough when the first one is a question word.
+            "Hey AGI, what's churn?",
+        ],
+    )
+    def test_recognizes_a_question(self, detector: WakeDetector, utterance: str) -> None:
+        match = detector.match(utterance)
+        assert match is not None, utterance
+        assert match.has_question, match.question
+
+    @pytest.mark.parametrize("utterance", ["Hey AGI", "Hey AGI, one sec", "Hey AGI, hang on"])
+    def test_bare_wake_waits_for_the_question(
+        self, detector: WakeDetector, utterance: str
+    ) -> None:
+        match = detector.match(utterance)
+        assert match is not None
+        assert not match.has_question
+
+
+class TestStopPhrase:
+    @pytest.mark.parametrize(
+        "utterance",
+        [
+            "AGI stop talking",
+            "AGI, stop talking.",
+            "Hey AGI, stop.",
+            "A.G.I. stop talking!",
+            "Hey Aji, shut up",
+            "okay AGI be quiet",
+            "stop talking, AGI",
+            "Kindred, that's enough",
+            "AGI never mind",
+        ],
+    )
+    def test_stops(self, stopper: StopDetector, utterance: str) -> None:
+        assert stopper.match(utterance) is not None, utterance
+
+    @pytest.mark.parametrize(
+        "utterance",
+        [
+            # A stop verb with nobody's name on it is people talking to each other.
+            "okay everyone stop talking over each other",
+            "can we stop the rollout",
+            "quiet down please",
+            # The name with no stop verb anywhere.
+            "Hey AGI, what does the deck say?",
+            # The verb is about something else entirely, eight words from the name.
+            "AGI gave us the revenue number so we should stop the rollout",
+        ],
+    )
+    def test_does_not_stop(self, stopper: StopDetector, utterance: str) -> None:
+        assert stopper.match(utterance) is None, utterance
+
+    def test_reports_what_it_heard(self, stopper: StopDetector) -> None:
+        match = stopper.match("Hey A G I, stop talking please")
+        assert match is not None
+        assert match.matched_text == "stop talking"
+
+    def test_follows_a_custom_wake_word(self) -> None:
+        stopper = StopDetector("Jarvis", [])
+        assert stopper.match("Jarvis, stop talking") is not None
+        assert stopper.match("AGI, stop talking") is None
 
 
 class TestConfigurable:

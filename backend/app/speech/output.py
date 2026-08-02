@@ -59,6 +59,10 @@ class _Channel:
     history: list[Utterance] = field(default_factory=list)
     worker: asyncio.Task[None] | None = None
     ready_timeout: float = DEFAULT_READY_TIMEOUT_SECONDS
+    playing: asyncio.Task[None] | None = None
+    """The clip being played right now, as a task the kill phrase can cancel."""
+    speaking: Utterance | None = None
+    """What that task is saying, so an interruption can report what it cut off."""
 
 
 class SpeechOutput:
@@ -195,14 +199,55 @@ class SpeechOutput:
     def clear(self, meeting_id: str) -> list[Utterance]:
         """Drop everything queued but not yet playing. Returns what was dropped.
 
-        Barge-in, as far as this endpoint allows: audio already handed to Recall cannot
-        be recalled, so the clip currently playing finishes. Streaming Output Media is
-        what makes true mid-sentence interruption possible.
+        The clip currently playing finishes. Use `stop()` for a real interruption.
         """
         channel = self._channels.get(meeting_id)
         if channel is None:
             return []
         return self._drain(channel, reason="interrupted")
+
+    async def stop(self, meeting_id: str) -> list[Utterance]:
+        """Barge-in. Cut the clip that is playing and drop everything behind it.
+
+        This is what "AGI, stop talking" is wired to, so all three halves matter:
+
+        - **the queue** is drained, or Kindred goes quiet for a second and then carries
+          on with the answer nobody wants any more;
+        - **the playback task** is cancelled, so the worker stops sleeping out the
+          current clip's duration and is free immediately;
+        - **the sink** is told to stop, which for Recall retracts audio it has already
+          accepted. Without this last step the interruption is only a promise to shut up
+          once the current sentence finishes.
+
+        Returns the utterances that were dropped, the one mid-flight included.
+        """
+        channel = self._channels.get(meeting_id)
+        if channel is None:
+            return []
+
+        dropped = self._drain(channel, reason="interrupted")
+
+        playing = channel.playing
+        speaking = channel.speaking
+        if playing is not None and not playing.done():
+            playing.cancel()
+            if speaking is not None:
+                # Marked here rather than left to the worker: the caller returns this
+                # list straight to the dashboard, and it must not race the worker's
+                # own bookkeeping to a status.
+                self._fail(speaking, "interrupted", status=UtteranceStatus.DROPPED)
+                dropped.insert(0, speaking)
+
+        try:
+            await channel.sink.stop()
+        except Exception:  # a sink that cannot stop must not block the rest of the stop
+            logger.exception("sink %s could not stop audio in %s", channel.sink.name, meeting_id)
+
+        self._set_agent_state(meeting_id, AgentState.IDLE, detail="interrupted")
+        logger.info(
+            "speech interrupted in %s; %d utterance(s) discarded", meeting_id, len(dropped)
+        )
+        return dropped
 
     async def wait_until_idle(self, meeting_id: str, timeout: float | None = None) -> None:
         """Block until the queue is empty and the last clip has finished playing."""
@@ -226,17 +271,36 @@ class SpeechOutput:
         channel = self._channels[meeting_id]
         while True:
             utterance = await channel.queue.get()
+
+            # Playback runs as its own task so `stop()` can cancel the clip without
+            # taking the worker down with it. `asyncio.wait` rather than `await`: a
+            # cancelled inner task must come back as a result to inspect, not as a
+            # CancelledError unwinding the loop that has more work to do.
+            playing = asyncio.create_task(
+                self._play(meeting_id, channel, utterance), name=f"play:{utterance.id}"
+            )
+            channel.playing = playing
+            channel.speaking = utterance
             try:
-                await self._play(meeting_id, channel, utterance)
+                await asyncio.wait({playing})
             except asyncio.CancelledError:
+                # The worker itself is going away — detach() or shutdown.
+                playing.cancel()
                 self._fail(utterance, "cancelled", status=UtteranceStatus.DROPPED)
                 raise
-            except Exception as exc:  # one bad utterance must not kill the worker
-                logger.exception("utterance %s failed", utterance.id)
-                self._fail(utterance, str(exc))
-                self._set_agent_state(meeting_id, AgentState.IDLE)
             finally:
+                channel.playing = None
+                channel.speaking = None
                 channel.queue.task_done()
+
+            if playing.cancelled():
+                self._fail(utterance, "interrupted", status=UtteranceStatus.DROPPED)
+                self._set_agent_state(meeting_id, AgentState.IDLE)
+            elif (error := playing.exception()) is not None:
+                # One bad utterance must not kill the worker.
+                logger.error("utterance %s failed: %s", utterance.id, error, exc_info=error)
+                self._fail(utterance, str(error))
+                self._set_agent_state(meeting_id, AgentState.IDLE)
 
     async def _play(self, meeting_id: str, channel: _Channel, utterance: Utterance) -> None:
         if self._is_muted(meeting_id):

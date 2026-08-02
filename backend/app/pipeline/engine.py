@@ -8,14 +8,21 @@ never reach here.
     │
     ├─ remember it (conversation context for both loops)
     │
+    ├─ kill phrase? ─ yes ──▶ STOP. Cancel the audio, drop the queue, forget the
+    │                          question, kill the reasoning that was in flight.
+    │
     ├─ wake word?  ── yes ──▶ SPEECH MODE
     │                          retrieve → answer → speak → type into chat
     │
     └───────────── no ──────▶ AMBIENT MODE
-                               triage → retrieve → look for a conflict → gate → type
+                               triage → retrieve → look for a contradiction → gate → type
 
 Work is dispatched as a task per utterance and serialized behind a per-meeting lock, so
 reasoning never blocks transcript ingestion and two interjections can never interleave.
+
+The kill phrase is the one thing that does not queue behind that lock. `handle_stop`
+runs immediately, on the ingest task, because everything it does is a cancellation —
+waiting for the lock would mean waiting for the very work it exists to abort.
 
 Nothing in here raises into its caller. A meeting that keeps running with a degraded
 copilot is strictly better than one where an exception in the reasoning path stops the
@@ -33,7 +40,6 @@ from ..audio import AudioClip
 from ..bus import bus
 from ..chat import chat_router
 from ..chat.sinks import with_trigger_prefix
-from ..speech.fillers import SAMPLE_FILLER_CLIP_ID as FILLER_FALLBACK_CLIP_ID
 from ..schemas import (
     AgentState,
     AgentStateChangedData,
@@ -44,33 +50,38 @@ from ..schemas import (
     InterjectionStatus,
     InterjectionTrigger,
     QuestionCapturedData,
+    SpeechInterruptedData,
     TranscriptSegment,
     WakeDetectedData,
 )
+from ..schemas.speech import Utterance
+from ..speech.fillers import SAMPLE_FILLER_CLIP_ID as FILLER_FALLBACK_CLIP_ID
 from ..store import store
 from ..video import card
 from . import reason
 from .context import ConversationMemory, Turn
 from .gate import InterjectionGate
 from .triage import is_checkable_claim
-from .wake import WakeDetector, build_detector
+from .wake import StopDetector, WakeDetector, build_detector, build_stop_detector
 
 log = logging.getLogger(__name__)
 
 WAKE_DEBOUNCE_SECONDS = 3.0
 """Ignore a second wake word this soon after the last. DESIGN.md §5."""
 
+STOP_DEBOUNCE_SECONDS = 1.5
+"""Ignore a repeat kill phrase this soon after the last.
+
+Short on purpose. The kill phrase arrives on partial transcript, so the same sentence
+fires it several times as the words land — but someone who says "stop" twice because the
+first one did not seem to take must not be ignored.
+"""
+
 QUESTION_CAPTURE_SECONDS = 20.0
 """How long to wait for the question after a bare wake word. DESIGN.md §5 step 2."""
 
 ACK_CLIP_ID = "chime"
 """Played on wake, before Kindred has an answer. Confirms it is listening."""
-
-_KIND_BY_VERDICT = {
-    "contradiction": InterjectionKind.CONTRADICTION,
-    "correction": InterjectionKind.CORRECTION,
-    "context": InterjectionKind.CONTEXT,
-}
 
 
 class _PendingQuestion:
@@ -92,10 +103,15 @@ class PipelineEngine:
         self.gate = InterjectionGate()
         self._locks: dict[str, asyncio.Lock] = {}
         self._tasks: set[asyncio.Task[None]] = set()
+        self._by_meeting: dict[str, set[asyncio.Task[None]]] = {}
+        """The same tasks, indexed so the kill phrase can cancel one meeting's work."""
         self._last_wake: dict[str, float] = {}
+        self._last_stop: dict[str, float] = {}
         self._pending: dict[str, _PendingQuestion] = {}
         self._detector: WakeDetector | None = None
         self._detector_key: tuple[str, tuple[str, ...]] | None = None
+        self._stop_detector: StopDetector | None = None
+        self._stop_detector_key: tuple[str, tuple[str, ...]] | None = None
 
     # --- entry point ---------------------------------------------------------------
 
@@ -115,7 +131,19 @@ class PipelineEngine:
         # Hold a reference: asyncio only keeps weak ones, and a garbage-collected task
         # cancels mid-reasoning with no error anywhere.
         self._tasks.add(task)
+        self._by_meeting.setdefault(segment.meeting_id, set()).add(task)
         task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._forget_task(segment.meeting_id))
+
+    def _forget_task(self, meeting_id: str):
+        def done(task: asyncio.Task[None]) -> None:
+            tasks = self._by_meeting.get(meeting_id)
+            if tasks is not None:
+                tasks.discard(task)
+                if not tasks:
+                    self._by_meeting.pop(meeting_id, None)
+
+        return done
 
     async def _process(self, segment: TranscriptSegment) -> None:
         lock = self._locks.setdefault(segment.meeting_id, asyncio.Lock())
@@ -133,6 +161,13 @@ class PipelineEngine:
             return
 
         settings = store.settings
+
+        # Normally the kill phrase has already fired from partial transcript and this is
+        # the finalized copy of the same sentence arriving late. Either way it stops
+        # here: "AGI, stop talking" is not a question and it is not a checkable claim.
+        if self.stop_match(segment.text) is not None:
+            await self.handle_stop(segment.meeting_id, source=segment.speaker_name)
+            return
 
         # A wake word landed last turn with no question attached. This utterance from the
         # same speaker is the question — unless they took too long, in which case the
@@ -159,6 +194,82 @@ class PipelineEngine:
                 return
 
         await self._ambient(segment)
+
+    # --- the kill phrase --------------------------------------------------------------
+
+    def stop_match(self, text: str):
+        """Whether this text tells Kindred to shut up. Safe to call on partials."""
+        return self._stop_detector_for(store.settings).match(text)
+
+    def sees_wake(self, text: str) -> bool:
+        """Whether this text holds a wake phrase.
+
+        The ingest buffer uses this to decide how long to keep waiting for the rest of
+        the sentence — not to wake anything. Waking still happens only on a finalized
+        utterance.
+        """
+        settings = store.settings
+        if not settings.wake_word_enabled:
+            return False
+        return self._detector_for(settings).match(text) is not None
+
+    async def handle_stop(
+        self, meeting_id: str, *, source: str = "someone", force: bool = False
+    ) -> list[Utterance]:
+        """Cut Kindred off. Returns the utterances that were discarded.
+
+        Called straight from ingest the moment the phrase is heard, ahead of the
+        per-meeting lock, because every step is an abort:
+
+        1. cancel the reasoning already in flight, so an answer that is half generated
+           never arrives thirty seconds later to a room that asked for silence;
+        2. drop the pending-question window, so the next thing anyone says is not
+           mistaken for the question Kindred was still waiting for;
+        3. cut the audio — queue and current clip both.
+
+        Order matters. Cancelling reasoning first means nothing can enqueue new speech
+        behind the drain.
+
+        `force` skips the debounce. The debounce exists because the kill phrase arrives
+        repeatedly as partial transcript revises; a human clicking the button in the
+        dashboard is not that, and being told "you already stopped it" when it is still
+        talking would be maddening.
+        """
+        if not force and not self._stop_debounce_ok(meeting_id):
+            return []
+        self._last_stop[meeting_id] = time.monotonic()
+
+        log.info("STOP in %s — %s told Kindred to stop talking", meeting_id, source)
+
+        cancelled = 0
+        for task in list(self._by_meeting.get(meeting_id, ())):
+            if task is not asyncio.current_task() and not task.done():
+                task.cancel()
+                cancelled += 1
+
+        self._pending.pop(meeting_id, None)
+
+        dropped: list[Utterance] = []
+        try:
+            from ..runtime import get_runtime
+
+            runtime = get_runtime()
+            if runtime.speech.is_attached(meeting_id):
+                dropped = await runtime.speech.stop(meeting_id)
+        except Exception:
+            log.exception("could not stop audio in %s", meeting_id)
+
+        self._set_agent_state(meeting_id, AgentState.IDLE, "stopped")
+        bus.publish_meeting(
+            meeting_id,
+            "speech.interrupted",
+            SpeechInterruptedData(
+                source=source,
+                dropped_utterances=len(dropped),
+                cancelled_tasks=cancelled,
+            ),
+        )
+        return dropped
 
     # --- speech mode ---------------------------------------------------------------
 
@@ -263,6 +374,13 @@ class PipelineEngine:
     # --- ambient loop ---------------------------------------------------------------
 
     async def _ambient(self, segment: TranscriptSegment) -> None:
+        """The unprompted half. Contradictions only — nothing else earns an interjection.
+
+        `Verdict.is_flag` is where that rule is enforced: it holds only when the model
+        returned "contradiction" *and* could quote both of the statements that cannot
+        both be true. A verdict without that pair is a model narrating rather than
+        catching something, and the room does not need it.
+        """
         meeting_id = segment.meeting_id
 
         checkable, _ = await is_checkable_claim(segment.text)
@@ -281,11 +399,19 @@ class PipelineEngine:
             self.gate.record_suppressed(meeting_id, decision.reason)
             return
 
+        log.info(
+            "CONTRADICTION in %s (%.2f) — %r vs %r",
+            meeting_id,
+            verdict.confidence,
+            verdict.statement_a[:60],
+            verdict.statement_b[:60],
+        )
+
         autonomy = store.settings.autonomy
         posting = autonomy == Autonomy.AUTO_POST
         interjection = store.build_interjection(
             meeting_id,
-            kind=_KIND_BY_VERDICT.get(verdict.kind, InterjectionKind.CONTEXT),
+            kind=InterjectionKind.CONTRADICTION,
             status=InterjectionStatus.POSTED if posting else InterjectionStatus.PROPOSED,
             chat_alert=with_trigger_prefix(verdict.chat_alert, verdict.topic),
             headline=verdict.headline,
@@ -334,7 +460,7 @@ class PipelineEngine:
         try:
             clip = await get_runtime().fillers.next_clip()
         except Exception:
-            logger.exception("filler synthesis failed in %s", meeting_id)
+            log.exception("filler synthesis failed in %s", meeting_id)
             clip = None
 
         if clip is None:
@@ -385,6 +511,10 @@ class PipelineEngine:
         last = self._last_wake.get(meeting_id)
         return last is None or (time.monotonic() - last) >= WAKE_DEBOUNCE_SECONDS
 
+    def _stop_debounce_ok(self, meeting_id: str) -> bool:
+        last = self._last_stop.get(meeting_id)
+        return last is None or (time.monotonic() - last) >= STOP_DEBOUNCE_SECONDS
+
     def _detector_for(self, settings) -> WakeDetector:
         """Cached detector, rebuilt when the wake word changes in settings."""
         key = (settings.wake_word, tuple(settings.wake_aliases))
@@ -394,6 +524,15 @@ class PipelineEngine:
             log.info("wake phrases: %s", ", ".join(self._detector.phrases[:8]))
         return self._detector
 
+    def _stop_detector_for(self, settings) -> StopDetector:
+        """Cached kill-phrase detector, rebuilt when the wake word changes."""
+        key = (settings.wake_word, tuple(settings.wake_aliases))
+        if self._stop_detector is None or self._stop_detector_key != key:
+            self._stop_detector = build_stop_detector()
+            self._stop_detector_key = key
+            log.info("stop phrase names: %s", ", ".join(self._stop_detector.names[:8]))
+        return self._stop_detector
+
     # --- lifecycle -------------------------------------------------------------------
 
     def forget(self, meeting_id: str) -> None:
@@ -401,7 +540,9 @@ class PipelineEngine:
         self.gate.clear(meeting_id)
         self._locks.pop(meeting_id, None)
         self._last_wake.pop(meeting_id, None)
+        self._last_stop.pop(meeting_id, None)
         self._pending.pop(meeting_id, None)
+        self._by_meeting.pop(meeting_id, None)
         chat_router.detach(meeting_id)
         card.forget(meeting_id)
 
@@ -410,9 +551,13 @@ class PipelineEngine:
         self.gate.reset()
         self._locks.clear()
         self._last_wake.clear()
+        self._last_stop.clear()
         self._pending.clear()
+        self._by_meeting.clear()
         self._detector = None
         self._detector_key = None
+        self._stop_detector = None
+        self._stop_detector_key = None
 
     async def drain(self, timeout: float = 10.0) -> None:
         """Wait for in-flight reasoning to finish. Used on shutdown and in tests."""
@@ -428,5 +573,12 @@ engine = PipelineEngine()
 
 
 def handle_final_segment(segment: TranscriptSegment) -> None:
-    """Run the loop for one finalized utterance. The pipeline's only entry point."""
+    """Run the loop for one finalized utterance. The pipeline's main entry point."""
     engine.handle_final_segment(segment)
+
+
+async def handle_stop(
+    meeting_id: str, *, source: str = "someone", force: bool = False
+) -> list[Utterance]:
+    """Cut Kindred off mid-sentence. Called from ingest on the kill phrase."""
+    return await engine.handle_stop(meeting_id, source=source, force=force)

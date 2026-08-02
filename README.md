@@ -53,11 +53,24 @@ Without `PUBLIC_BASE_URL` the bot joins and speaks but never hears, and the wake
 silently never fires — `GET /api/health` and a startup warning both call this out.
 
 Recall streams transcript **word by word**, so `app/ingest/recall_live.py` buffers per
-speaker and flushes an utterance on terminal punctuation or a ~1s silence gap
-(`TRANSCRIPT_SILENCE_MS`). That is what "after every person finishes speaking" actually
-means in practice, and it is why wake matching sees `"Hey AGI, what does the deck say"`
-rather than the single word `"hey"`. The flushed segment goes to the same
-`handle_final_segment` the fixture harness calls.
+speaker and flushes an utterance on terminal punctuation, a ~1s silence gap
+(`TRANSCRIPT_SILENCE_MS`), or a hard ceiling (`TRANSCRIPT_MAX_UTTERANCE_MS`). That is
+what "after every person finishes speaking" actually means in practice, and it is why
+wake matching sees `"Hey AGI, what does the deck say"` rather than the single word
+`"hey"`. The flushed segment goes to the same `handle_final_segment` the fixture harness
+calls.
+
+The ceiling is the one that matters live. A silence gap only arrives if there is
+silence, and with an open microphone there is not — breathing, keyboards, and the next
+sentence all land inside the gap and reset it, so the buffer grows forever and nothing
+is ever flushed. That is the "it only responds if you mute at the end" failure. Once a
+wake phrase is in the buffer both windows tighten (`TRANSCRIPT_WAKE_SILENCE_MS`,
+`TRANSCRIPT_WAKE_MAX_MS`), because at that point somebody is visibly waiting.
+
+Say **"AGI, stop talking"** and it stops mid-word. That phrase is matched on *partial*
+transcript, ahead of everything else: it cancels the reasoning in flight, drops the
+speech queue, and retracts the clip already playing through Recall's stop-audio
+endpoint. `POST /api/meetings/{id}/interrupt` is the same thing from the dashboard.
 
 ## The loop
 
@@ -66,15 +79,22 @@ Every finalized utterance goes through one entry point:
 ```
 handle_final_segment(segment)
    │
-   ├── "Hey AGI" heard ──▶ speech mode
-   │                        retrieve → answer → Inworld TTS → speak → type into chat
+   ├── "AGI stop talking" ─▶ stop. cancel the audio, the queue, and the reasoning
    │
-   └── otherwise ────────▶ ambient mode
-                            triage → retrieve → find conflicts → rate-limit → type into chat
+   ├── "Hey AGI" heard ────▶ speech mode
+   │                          retrieve → answer → Inworld TTS → speak → type into chat
+   │
+   └── otherwise ──────────▶ ambient mode
+                              triage → retrieve → find a contradiction → rate-limit → chat
 ```
 
-The ambient loop looks for two kinds of conflict: a claim that contradicts the documents,
-and a claim that contradicts what someone else already said in this meeting.
+**The ambient loop only speaks up for a contradiction.** Not extra context, not a useful
+qualification, not an interesting related figure — a contradiction, meaning two specific
+statements that cannot both be true, each quoted verbatim: one from the documents or
+from earlier in the transcript, one from the utterance under review. A verdict that
+cannot produce both statements is dropped before it reaches the rate limiter, because a
+model that flags a conflict it cannot quote has reasoned its way there rather than read
+it off the page. Everything else stays quiet.
 
 **Reasoning runs on Gemini** (`gemini-3.5-flash-lite`), roughly 1-2s per call. Claude is
 still wired behind the same `LLMProvider` seam — set `LLM_PROVIDER=claude` to switch.
@@ -120,12 +140,23 @@ pgvector, and an embedding provider off the critical path. `app/knowledge/base.p
 One command puts Kindred in the default meeting, starting the backend if it isn't up:
 
 ```bash
-python scripts/kindred.py            # join, after a preflight
+python scripts/kindred.py            # backend + dashboard + bot, after a preflight
 python scripts/kindred.py --watch    # ...and tail what it hears and says
+python scripts/kindred.py --no-ui    # backend and bot only
 python scripts/kindred.py --check    # preflight only, dispatch nothing
 python scripts/kindred.py --leave    # pull the bot out
 python scripts/kindred.py <meet-url> # a different meeting
 ```
+
+That is backend on `:5000`, dashboard on `:3000`, and Kindred in the meeting. It also
+writes `frontend/.env.local` so the dashboard points at whichever port the backend is
+actually on — the frontend defaults to `:8000`, so without that the dashboard loads,
+looks entirely healthy, and shows nothing.
+
+Unlike the backend, an already-running `next dev` is left alone: Next hot-reloads, so it
+is never serving a stale build. The one thing it will not pick up is `.env.local`, which
+is read at startup, so the script warns when it has just changed one under a running
+dev server.
 
 **It always restarts the backend.** Reusing a server that is already listening means a
 code change silently does not take effect, and the symptom is a feature that "doesn't

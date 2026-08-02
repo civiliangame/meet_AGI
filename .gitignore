@@ -23,3 +23,6 @@ frontend/package-lock.json
 
 # Session archive (runtime data)
 data/
+kindred-server.log
+kindred-frontend.log
+frontend/.env.local

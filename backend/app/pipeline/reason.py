@@ -41,18 +41,33 @@ class Verdict:
     """The ambient loop's conclusion about one utterance."""
 
     kind: str
-    """contradiction | correction | context | none"""
+    """contradiction | none. Nothing else interjects — DESIGN.md §4."""
     confidence: float
     topic: str
     """Short noun phrase naming what triggered this. Renders in the chat prefix."""
     headline: str
     chat_alert: str
     body_md: str
+    statement_a: str = ""
+    """The earlier statement, verbatim. Half of the pair that cannot both be true."""
+    statement_b: str = ""
+    """The claim under review, verbatim. The other half."""
     citations: list[Citation] = field(default_factory=list)
 
     @property
     def is_flag(self) -> bool:
-        return self.kind != "none"
+        """Whether this interjects.
+
+        Both statements are load-bearing, not decoration. A model that flags a
+        contradiction but cannot quote the two conflicting statements has reasoned its
+        way to a conclusion rather than read one off the transcript, and that is the
+        exact failure mode that produces an interjection nobody in the room agrees with.
+        """
+        return (
+            self.kind == "contradiction"
+            and bool(self.statement_a.strip())
+            and bool(self.statement_b.strip())
+        )
 
 
 @dataclass
@@ -88,7 +103,11 @@ def _citations(chunks: list[Chunk], chunk_ids: list[str], quotes: list[str]) -> 
 
 
 async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
-    """Does this claim conflict with the documents, or with the meeting so far?"""
+    """Does this claim contradict the documents, or something already said?
+
+    Contradictions only. A claim the documents merely add colour to is not something
+    Kindred says anything about.
+    """
     provider = get_llm_provider()
     if provider is None:
         return NO_FLAG
@@ -115,20 +134,30 @@ async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
         return NO_FLAG
 
     kind = str(result.get("verdict", "none"))
-    if kind == "none":
+    if kind != "contradiction":
         return NO_FLAG
 
-    return Verdict(
+    verdict = Verdict(
         kind=kind,
         confidence=float(result.get("confidence", 0.0)),
         topic=str(result.get("topic", "")).strip(),
         headline=str(result.get("headline", "")).strip(),
         chat_alert=str(result.get("chat_alert", "")).strip(),
         body_md=str(result.get("body_md", "")).strip(),
+        statement_a=str(result.get("statement_a", "")).strip(),
+        statement_b=str(result.get("statement_b", "")).strip(),
         citations=_citations(
             chunks, list(result.get("chunk_ids", [])), list(result.get("quotes", []))
         ),
     )
+    if not verdict.is_flag:
+        log.info(
+            "contradiction claimed without both statements; dropping (a=%r, b=%r)",
+            verdict.statement_a[:60],
+            verdict.statement_b[:60],
+        )
+        return NO_FLAG
+    return verdict
 
 
 async def answer_question(*, question: str, asker: str, transcript: str) -> Answer | None:

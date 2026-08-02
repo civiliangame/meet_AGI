@@ -171,8 +171,15 @@ Runs on every finalized utterance that is not a wake.
    what survives and decides what matters. Recall beats precision here — a chunk wrongly
    included costs a few hundred tokens; a chunk wrongly excluded is a fact Kindred cannot
    see.
-4. **Reason** — Claude returns a structured verdict: conflict or not, confidence,
-   citations, a headline, a body, and a chat alert.
+4. **Reason** — Claude returns a structured verdict, and the only verdict that interjects
+   is **contradiction**: two specific statements that cannot both be true, each quoted
+   verbatim, one from the transcript or the corpus and one from the utterance under
+   review. There is no `context` verdict and no `correction` verdict any more. A model
+   that flags a conflict but cannot produce both statements has reasoned its way to a
+   conclusion rather than read one off the page, and the verdict is dropped in
+   `Verdict.is_flag` before it ever reaches the gate. Everything else — useful nuance,
+   a related figure, a qualification worth hearing — stays quiet. The bar for
+   interrupting people is a contradiction or nothing.
 5. **Gate** — drop it unless confidence clears `min_confidence`, the cooldown has
    elapsed, and the per-meeting cap is not hit. **Answers to direct questions bypass the
    gate** — if someone asks, Kindred replies. Only unprompted interjections are rationed.
@@ -209,21 +216,61 @@ Matched against **finalized transcript only**. Partials revise as they arrive, a
 partial that briefly reads `"hey a g..."` fires a wake the final then contradicts. This
 is the single likeliest thing to embarrass you on stage.
 
-Two problems a naive substring check does not solve:
+Four problems a naive substring check does not solve:
 
 **STT mangles "AGI".** It is three letters, not a word, so real transcripts come back as
 `hey a g i`, `hey agi`, `hey aji`, `hey adji`. The variant set is generated from the
 configured wake word plus a homophone list, so changing the wake word in settings does
 not silently break matching.
 
+**The homophone list is never complete.** Providers invent spellings nobody anticipated —
+`hey ajai`, `hey hgi`, `hey agie`. After the exact pass there is a fuzzy pass: strip the
+spaces out of a candidate token window and compare it to the wake phrase by edit
+distance. `heyaji` is one edit from `heyagi` and wakes; `heygigi` is two and does not.
+The fuzzy pass is held to a higher bar for what may follow it, since it is the pass that
+can invent a wake out of an unrelated word.
+
 **People say the wake word while talking about it.** "We should call it Hey AGI" must not
 wake. The guard is positional: the phrase must start the utterance or follow a clause
 boundary — which is where someone addressing the agent mid-sentence ("hold on, hey AGI,
-what does the deck say") actually puts it.
+what does the deck say") actually puts it. Distinctiveness belongs to the *configured*
+phrase, not the variant: "Hey AGI" is two words and nothing anybody says by accident,
+`Kindred` is one ordinary English word, and the mangled spelling `kin dread` inherits the
+latter's caution however STT chose to tokenize it.
+
+**A wake word only reaches this code if the utterance ever ends.** With an open
+microphone it does not: words keep landing inside the silence gap and reset it, the
+ingest buffer grows forever, and nothing is ever flushed. That is the "it only responds
+if you mute at the end" bug, and it is fixed at the ingest boundary rather than here —
+see §7.
 
 Belt and braces on top: a **manual wake button** and a **mute kill switch** in the
 dashboard, plus `POST /ask` to type a question directly. All three are stage insurance,
 and all three should be visible controls, not debug tools.
+
+### "AGI, stop talking"
+
+The kill phrase, and the one signal deliberately matched on **partial** transcript. The
+rule is a name plus a stop verb within a few tokens, in either order — `AGI stop
+talking`, `Hey AGI, stop`, `stop talking, AGI`, `Kindred, that's enough`. Requiring the
+name is what keeps "okay everyone, stop talking over each other" from muting the agent.
+
+Waiting for the finalized utterance here would be exactly wrong. Everything the phrase
+does is an abort, so a false positive costs silence and a false negative means Kindred
+talks over the person telling it to shut up.
+
+It aborts three things, in this order:
+
+1. **Reasoning in flight** is cancelled, so a half-generated answer cannot land thirty
+   seconds later in a room that asked for silence.
+2. **The pending-question window** is dropped, so the next thing anybody says is not
+   mistaken for the question Kindred was still waiting on.
+3. **Audio** — the queue is discarded *and* the clip already playing is retracted through
+   Recall's `DELETE /bot/{id}/output_audio/`. Without that last step the interruption is
+   only a promise to stop at the end of the sentence.
+
+`POST /api/meetings/{id}/interrupt` is the same path from the dashboard, skipping the
+debounce that exists to absorb the phrase arriving repeatedly as partials revise.
 
 ### Answering
 
@@ -380,6 +427,11 @@ lands in OpenAPI — see §8.3.
 answer | clarification`; `status` ∈ `proposed | approved | posted | dismissed | failed`.
 Carries `chat_alert` (≤500 chars, what the meeting saw), `headline`, `body_md`,
 `confidence`, `citations[]`, and `trigger` (the quote that caused it).
+
+The ambient loop now only ever emits `contradiction`, and speech mode only ever emits
+`answer`. `context` and `correction` stay in the enum because removing an enum variant is
+a breaking change for a generated client and this one costs nothing to keep — but nothing
+produces them, and a frontend need not render them.
 
 **`Utterance`** — an audio event. Deliberately separate from `Interjection`: an
 interjection is a conclusion, an utterance is the sound that carried it. `status` ∈

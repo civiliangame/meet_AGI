@@ -164,6 +164,128 @@ class TestAggregation:
 
 
 @pytest.mark.asyncio
+class TestOpenMicrophone:
+    """The bug: with a live mic nothing ever flushed, so Kindred answered nothing.
+
+    A silence gap only arrives if there is silence. When the speaker leaves the mic
+    open, words keep landing inside the gap and reset it, the buffer grows forever, and
+    the wake word never reaches the pipeline — which is why it "only worked if you muted
+    at the end".
+    """
+
+    async def test_a_speaker_who_never_pauses_still_flushes(self, meeting, captured) -> None:
+        ingest = RecallLiveIngest(silence_ms=10_000, max_utterance_ms=300)
+
+        # A word every 30ms, forever — no gap anywhere near the 10s silence timer.
+        for word in ["so", "anyway", "the", "numbers", "were", "fine", "last", "month"]:
+            await ingest.handle(event([word]))
+            await asyncio.sleep(0.03)
+
+        await asyncio.sleep(0.3)
+        assert captured, "the ceiling must flush a buffer that never sees a gap"
+        assert "so anyway" in captured[0].text
+
+    async def test_a_question_lands_fast_when_the_mic_stays_open(
+        self, meeting, captured
+    ) -> None:
+        """The demo case. Someone asks and keeps talking; the answer cannot wait."""
+        ingest = RecallLiveIngest(
+            silence_ms=10_000, max_utterance_ms=10_000, wake_max_ms=250
+        )
+
+        for word in ["Hey", "AGI", "what", "was", "our", "growth", "last", "quarter"]:
+            await ingest.handle(event([word]))
+        # Still talking — no silence to wait for.
+        await asyncio.sleep(0.1)
+        await ingest.handle(event(["um"]))
+        await asyncio.sleep(0.4)
+
+        assert len(captured) == 1
+        assert captured[0].text.startswith("Hey AGI what was our growth last quarter")
+
+    async def test_the_ceiling_is_absolute_not_resettable(self, meeting, captured) -> None:
+        """Incoming words must not push the ceiling back, or it is no ceiling at all.
+
+        This is the same shape as the bug it replaces: a deadline that every new word
+        postpones is one an uninterrupted speaker never reaches.
+        """
+        ingest = RecallLiveIngest(silence_ms=10_000, max_utterance_ms=150)
+
+        for _ in range(20):
+            await ingest.handle(event(["and"]))
+            await asyncio.sleep(0.03)
+        await asyncio.sleep(0.2)
+
+        assert len(captured) >= 2, (
+            "a continuous speaker should produce an utterance per ceiling window, "
+            f"got {len(captured)}"
+        )
+
+    async def test_the_wake_gap_only_ever_shortens_the_wait(self, meeting, captured) -> None:
+        """A deployment with a tighter silence gap keeps it after a wake word."""
+        ingest = RecallLiveIngest(silence_ms=60, wake_silence_ms=5_000)
+
+        await ingest.handle(event(["Hey", "AGI", "what", "changed"]))
+        await asyncio.sleep(0.25)
+        assert len(captured) == 1
+
+
+@pytest.mark.asyncio
+class TestKillPhrase:
+    """"AGI, stop talking" — heard on partials, and never treated as an utterance."""
+
+    @pytest.fixture
+    def stopped(self, monkeypatch) -> list:
+        calls: list = []
+
+        async def fake_stop(meeting_id, *, source="someone", force=False):
+            calls.append((meeting_id, source))
+            return []
+
+        from app.pipeline.engine import engine
+
+        monkeypatch.setattr(engine, "handle_stop", fake_stop)
+        return calls
+
+    async def test_fires_on_a_partial(self, meeting, captured, stopped) -> None:
+        """The whole point: do not wait for the sentence to finalize."""
+        ingest = RecallLiveIngest(silence_ms=10_000)
+        await ingest.handle(
+            event(["AGI", "stop", "talking"], kind="transcript.partial_data")
+        )
+
+        assert stopped == [(MEETING_ID, "Priya Raman")]
+        assert not captured
+
+    async def test_fires_across_two_events(self, meeting, captured, stopped) -> None:
+        """The name and the verb often arrive in separate word batches."""
+        ingest = RecallLiveIngest(silence_ms=10_000)
+        await ingest.handle(event(["Okay", "AGI"]))
+        await ingest.handle(event(["stop", "talking"]))
+
+        assert len(stopped) == 1
+
+    async def test_never_reaches_the_pipeline_as_an_utterance(
+        self, meeting, captured, stopped
+    ) -> None:
+        """It is not a question and not a claim. Reasoning about it is nonsense."""
+        ingest = RecallLiveIngest(silence_ms=40)
+        await ingest.handle(event(["AGI", "stop", "talking", "."]))
+        await asyncio.sleep(0.2)
+
+        assert stopped
+        assert not captured
+
+    async def test_ordinary_speech_does_not_stop_it(self, meeting, captured, stopped) -> None:
+        ingest = RecallLiveIngest(silence_ms=40)
+        await ingest.handle(event(["we", "should", "stop", "the", "rollout", "."]))
+        await asyncio.sleep(0.2)
+
+        assert not stopped
+        assert len(captured) == 1
+
+
+@pytest.mark.asyncio
 class TestParticipants:
     async def test_join_and_leave_maintain_the_roster(self, meeting) -> None:
         ingest = RecallLiveIngest()

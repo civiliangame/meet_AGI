@@ -6,6 +6,7 @@
     python scripts/kindred.py --watch             # ...and tail what it hears and says
     python scripts/kindred.py --leave             # pull the bot out
     python scripts/kindred.py --check             # preflight only, dispatch nothing
+    python scripts/kindred.py --no-ui             # backend and bot only, no dashboard
 
 Does the boring parts in the right order and refuses to dispatch a bot into a setup that
 cannot work — a bot that joins and then turns out to be deaf costs a meeting to discover,
@@ -17,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -26,17 +28,22 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 BACKEND = REPO / "backend"
+FRONTEND = REPO / "frontend"
 PYTHON = BACKEND / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 # The recurring "Voice AI test" call. Overridden by the first positional argument.
 DEFAULT_MEETING_URL = "https://meet.google.com/org-rzjs-ici"
 DEFAULT_PORT = 5000
+DEFAULT_UI_PORT = 3000  # matches CORS_ORIGINS in app/main.py
 
 OK, WARN, BAD = "  ok  ", " warn ", " FAIL "
 
 
 def _c(text: str, code: str) -> str:
-    return text if os.name == "nt" and not os.environ.get("WT_SESSION") else f"\033[{code}m{text}\033[0m"
+    """Colour, unless we are on a Windows console that will print the escapes literally."""
+    if os.name == "nt" and not os.environ.get("WT_SESSION"):
+        return text
+    return f"\033[{code}m{text}\033[0m"
 
 
 def green(t): return _c(t, "32")
@@ -190,6 +197,81 @@ def start_server(port: int) -> subprocess.Popen | None:
     return None
 
 
+# --- the dashboard --------------------------------------------------------------------
+
+
+def point_frontend_at(api_port: int) -> bool:
+    """Write `frontend/.env.local` so the UI calls the right backend. True if changed.
+
+    The frontend defaults to `:8000` and this script runs the backend on `:5000`, so
+    without this the dashboard loads, looks completely fine, and shows nothing — every
+    fetch quietly fails against a port with no server on it.
+    """
+    target = FRONTEND / ".env.local"
+    desired = f"NEXT_PUBLIC_API_BASE=http://localhost:{api_port}\n"
+    if target.exists() and target.read_text(encoding="utf-8") == desired:
+        return False
+    target.write_text(desired, encoding="utf-8")
+    return True
+
+
+def frontend_up(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://localhost:{port}", timeout=3):
+            return True
+    except urllib.error.HTTPError:
+        return True  # answering at all is enough; Next may 404 the bare root
+    except Exception:
+        return False
+
+
+def start_frontend(ui_port: int, api_port: int) -> subprocess.Popen | None:
+    """Launch `next dev`, unless a dev server is already there.
+
+    An existing one is left running rather than restarted: Next hot-reloads, so unlike
+    uvicorn it is never serving a stale build. The one thing it will not pick up is
+    `.env.local`, which is read at startup — hence the warning.
+    """
+    changed = point_frontend_at(api_port)
+
+    if frontend_up(ui_port):
+        if changed:
+            print(yellow(f"[{WARN}] dashboard  already running on :{ui_port}, but its API base "
+                         f"just changed"))
+            print(dim(f"           restart it to pick up :{api_port}"))
+        else:
+            print(green(f"[{OK}] dashboard  http://localhost:{ui_port}  (already running)"))
+        return None
+
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    if npm is None:
+        print(yellow(f"[{WARN}] dashboard  npm not found — skipping the UI"))
+        return None
+    if not (FRONTEND / "node_modules").exists():
+        print(yellow(f"[{WARN}] dashboard  dependencies missing — run `npm install` in frontend/"))
+        return None
+
+    print(dim(f"  starting dashboard on :{ui_port} …"))
+    log = open(REPO / "kindred-frontend.log", "ab")
+    process = subprocess.Popen(
+        [npm, "run", "dev", "--", "--port", str(ui_port)],
+        cwd=FRONTEND, stdout=log, stderr=subprocess.STDOUT,
+        shell=(sys.platform == "win32"),
+    )
+    # Next's first compile is slow and there is nothing useful to do while it runs, so
+    # this waits rather than leaving a half-open browser tab.
+    for _ in range(60):
+        time.sleep(0.5)
+        if frontend_up(ui_port):
+            print(green(f"[{OK}] dashboard  http://localhost:{ui_port}"))
+            return process
+        if process.poll() is not None:
+            print(yellow(f"[{WARN}] dashboard  exited — see kindred-frontend.log"))
+            return None
+    print(yellow(f"[{WARN}] dashboard  slow to start; check http://localhost:{ui_port} shortly"))
+    return process
+
+
 def preflight(port: int) -> bool:
     """Report every capability. Returns False only for things that block dispatch."""
     health = api(port, "/api/health")
@@ -237,7 +319,7 @@ def watch(port: int, meeting_id: str) -> None:
     interesting = re.compile(
         r"recall_live: \[|WAKE in|would post to chat|playing \d+ms|filler|"
         r"interjection|Inworld|generativelanguage",
-        re.I,
+        re.IGNORECASE,
     )
     with log_path.open("r", encoding="utf-8", errors="replace") as handle:
         handle.seek(0, os.SEEK_END)
@@ -265,6 +347,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Put Kindred in a meeting.")
     parser.add_argument("url", nargs="?", default=DEFAULT_MEETING_URL, help="Google Meet URL.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--ui-port", type=int, default=DEFAULT_UI_PORT)
+    parser.add_argument("--no-ui", action="store_true", help="Skip the dashboard.")
     parser.add_argument("--title", default="Voice AI test")
     parser.add_argument("--watch", action="store_true", help="Tail what it hears and says.")
     parser.add_argument("--leave", action="store_true", help="Remove Kindred from every meeting.")
@@ -304,6 +388,9 @@ def main() -> int:
     if start_server(args.port) is None:
         return 1
     print(green(f"[{OK}] server     http://localhost:{args.port}  (docs at /docs)"))
+
+    if not args.no_ui:
+        start_frontend(args.ui_port, args.port)
 
     # Catch bots orphaned by a server that died without evicting — a hard kill, a crash,
     # or a run that predates this script. Recall keeps them in the meeting regardless.
@@ -354,6 +441,8 @@ def main() -> int:
     print(dim(f"    ask  curl -X POST localhost:{args.port}/api/meetings/{meeting_id}/ask \\"))
     print(dim("           -H 'content-type: application/json' \\"))
     print(dim("           -d '{\"question\":\"what changed on churn?\",\"speak\":true}'"))
+    if not args.no_ui:
+        print(dim(f"    see  http://localhost:{args.ui_port}/sessions/{meeting_id}"))
     print(dim("    stop python scripts/kindred.py --leave\n"))
 
     if args.watch:

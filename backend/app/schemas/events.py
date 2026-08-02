@@ -97,6 +97,21 @@ class AnsweredData(Schema):
     interjection_id: str
 
 
+class SpeechInterruptedData(Schema):
+    """Kindred was cut off — the kill phrase, or the interrupt endpoint."""
+
+    source: str = Field(
+        description="Who or what stopped it: a speaker's display name, or 'dashboard'.",
+        examples=["Marcus Chen"],
+    )
+    dropped_utterances: int = Field(
+        default=0, description="Queued clips discarded, including the one mid-playback."
+    )
+    cancelled_tasks: int = Field(
+        default=0, description="Reasoning calls abandoned before they could produce audio."
+    )
+
+
 class ErrorData(Schema):
     code: str
     message: str
@@ -181,6 +196,11 @@ class AnsweredEvent(_Envelope):
     data: AnsweredData
 
 
+class SpeechInterruptedEvent(_Envelope):
+    type: Literal["speech.interrupted"] = "speech.interrupted"
+    data: SpeechInterruptedData
+
+
 class DocumentStatusChangedEvent(_Envelope):
     type: Literal["document.status_changed"] = "document.status_changed"
     data: Document
@@ -207,6 +227,7 @@ LiveEvent = Annotated[
         QuestionCapturedEvent,
         ClarificationAskedEvent,
         AnsweredEvent,
+        SpeechInterruptedEvent,
         DocumentStatusChangedEvent,
         ErrorEvent,
     ],

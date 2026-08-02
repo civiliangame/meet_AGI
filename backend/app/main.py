@@ -30,6 +30,7 @@ from . import archive
 from .api import api_router
 from .config import get_config
 from .errors import ApiError
+from .ingest import recall_live
 from .knowledge import get_knowledge_base
 from .runtime import get_runtime, shutdown_runtime
 from .video import attach_to_bus
@@ -186,6 +187,16 @@ async def on_startup() -> None:
     restored = archive.load_all()
     archive.start_autosave()
     log.info("restored %d archived session(s)", restored)
+
+    # Turn the configured transcript windows into live ingest state. Skipping this is
+    # how the ceiling that stops an open mic from swallowing every utterance ends up
+    # never being applied.
+    recall_live.configure(
+        config.transcript_silence_ms,
+        wake_silence_ms=config.transcript_wake_silence_ms,
+        max_utterance_ms=config.transcript_max_utterance_ms,
+        wake_max_ms=config.transcript_wake_max_ms,
+    )
 
     if not config.recall_api_key:
         log.warning(

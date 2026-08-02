@@ -67,6 +67,8 @@ class StubLLM:
         if not self.flag:
             return {
                 "verdict": "none",
+                "statement_a": "",
+                "statement_b": "",
                 "confidence": 0.0,
                 "headline": "",
                 "chat_alert": "",
@@ -76,6 +78,10 @@ class StubLLM:
             }
         return {
             "verdict": "contradiction",
+            # Both halves of the conflict, verbatim. The engine drops a contradiction
+            # that cannot produce these, so a stub without them tests nothing.
+            "statement_a": "New Product Line: $1.42M (-12.1% MoM).",
+            "statement_b": "new product revenue is up about eight percent this quarter",
             "confidence": 0.86,
             "headline": "Marcus's revenue claim conflicts with the Q3 board deck",
             "chat_alert": "⚠️ Kindred: that +8% is gross bookings. The Q3 deck (p.14) "
@@ -325,6 +331,18 @@ class TestSpeechMode:
         assert len(store.interjections_for(MEETING_ID)) == 1
         assert store.interjections_for(MEETING_ID)[0].kind == "answer"
 
+    async def test_a_bare_question_without_the_wake_word_is_not_answered(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """Speech mode is opt-in. Every question in the room is not for Kindred."""
+        engine.handle_final_segment(
+            segment("What does the deck say about the new product line?", participant="p_1")
+        )
+        await engine.drain()
+
+        assert "answer" not in engine.stub.calls
+        assert not store.interjections_for(MEETING_ID)
+
     async def test_muted_agent_stays_silent(self, meeting, chat, runtime, engine) -> None:
         meeting.agent_state = AgentState.MUTED
 
@@ -334,6 +352,148 @@ class TestSpeechMode:
         await engine.drain()
 
         assert engine.stub.calls == []
+        assert not store.interjections_for(MEETING_ID)
+        assert not chat.sent
+
+
+@pytest.mark.asyncio
+class TestKillPhrase:
+    """"AGI, stop talking" has to actually stop it, not queue politeness."""
+
+    async def test_drops_queued_speech_and_cuts_the_current_clip(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        import asyncio
+
+        playing = await runtime.speech.say(MEETING_ID, clip_id="greeting")
+        queued = await runtime.speech.say(MEETING_ID, clip_id="chime")
+        await asyncio.sleep(0.05)  # let the worker pick the first one up
+        assert playing.status == "speaking", "the first clip should be mid-playback"
+
+        dropped = await engine.handle_stop(MEETING_ID, source="Priya Raman")
+
+        # Both halves: the clip that was already going out, and the one behind it.
+        assert {u.id for u in dropped} == {playing.id, queued.id}
+        assert all(u.status == "dropped" for u in dropped)
+        assert runtime.speech.queue_depth(MEETING_ID) == 0
+        assert meeting.agent_state == AgentState.IDLE
+
+    async def test_the_phrase_never_becomes_a_question(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """Reasoning about the sentence that told you to stop is the wrong answer."""
+        engine.handle_final_segment(
+            segment("AGI, stop talking.", speaker="Priya Raman", participant="p_1")
+        )
+        await engine.drain()
+
+        assert engine.stub.calls == []
+        assert not store.interjections_for(MEETING_ID)
+        assert not chat.sent
+
+    async def test_cancels_reasoning_already_in_flight(
+        self, meeting, chat, runtime, engine, monkeypatch
+    ) -> None:
+        """The failure it exists to prevent: an answer landing after "stop"."""
+        import asyncio
+
+        released = asyncio.Event()
+        original = engine.stub.complete_json
+
+        async def slow(**kwargs):
+            if "answer them out loud" in kwargs["system"]:
+                await released.wait()
+            return await original(**kwargs)
+
+        monkeypatch.setattr(engine.stub, "complete_json", slow)
+
+        engine.handle_final_segment(
+            segment("Hey AGI, what does the deck say about churn?", participant="p_1")
+        )
+        await asyncio.sleep(0.05)  # let it reach the stalled model call
+
+        await engine.handle_stop(MEETING_ID, source="Priya Raman")
+        released.set()
+        await engine.drain(timeout=2.0)
+
+        assert not store.interjections_for(MEETING_ID), "the abandoned answer must not land"
+        assert not chat.sent
+
+    async def test_the_pending_question_window_is_dropped(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """After a stop, the next thing anyone says is not the question it was awaiting."""
+        engine.handle_final_segment(segment("Hey AGI", participant="p_1"))
+        await engine.drain()
+
+        await engine.handle_stop(MEETING_ID, source="Priya Raman")
+
+        engine.handle_final_segment(
+            segment("What does the deck say about the new product line?", participant="p_1")
+        )
+        await engine.drain()
+
+        assert "answer" not in engine.stub.calls
+        assert not store.interjections_for(MEETING_ID)
+
+    async def test_repeat_phrases_from_partials_only_fire_once(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """Partial transcript re-delivers the same sentence several times."""
+        await runtime.speech.say(MEETING_ID, clip_id="greeting")
+
+        first = await engine.handle_stop(MEETING_ID, source="Priya Raman")
+        second = await engine.handle_stop(MEETING_ID, source="Priya Raman")
+
+        assert first
+        assert second == [], "the debounce must swallow the repeat"
+
+
+@pytest.mark.asyncio
+class TestContradictionOnly:
+    """The ambient loop's whole remit: two statements that cannot both be true."""
+
+    async def test_a_verdict_without_both_statements_is_dropped(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """A model that cannot quote both halves has reasoned rather than read."""
+        original = engine.stub.complete_json
+
+        async def vague(**kwargs):
+            result = await original(**kwargs)
+            if result.get("verdict") == "contradiction":
+                result = {**result, "statement_a": "", "statement_b": ""}
+            return result
+
+        engine.stub.complete_json = vague
+
+        engine.handle_final_segment(
+            segment("New product revenue is up about eight percent this quarter.")
+        )
+        await engine.drain()
+
+        assert not store.interjections_for(MEETING_ID)
+        assert not chat.sent
+
+    async def test_context_and_correction_verdicts_no_longer_interject(
+        self, meeting, chat, runtime, engine
+    ) -> None:
+        """Only contradictions earn an interruption. Everything else stays quiet."""
+        original = engine.stub.complete_json
+
+        async def context_only(**kwargs):
+            result = await original(**kwargs)
+            if result.get("verdict") == "contradiction":
+                result = {**result, "verdict": "context"}
+            return result
+
+        engine.stub.complete_json = context_only
+
+        engine.handle_final_segment(
+            segment("New product revenue is up about eight percent this quarter.")
+        )
+        await engine.drain()
+
         assert not store.interjections_for(MEETING_ID)
         assert not chat.sent
 

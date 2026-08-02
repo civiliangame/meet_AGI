@@ -145,6 +145,34 @@ class AppConfig(BaseSettings):
             "cut a speaker off mid-thought."
         ),
     )
+    transcript_wake_silence_ms: int = Field(
+        default=400,
+        description=(
+            "The same gap, but once the wake word has been heard. Much shorter, because "
+            "somebody is now waiting on an answer out loud and every extra hundred "
+            "milliseconds reads as the agent not having heard them."
+        ),
+    )
+    transcript_max_utterance_ms: int = Field(
+        default=9000,
+        description=(
+            "Hard ceiling on how long words may accumulate before the utterance is "
+            "flushed anyway. Without this an open microphone never produces a silence "
+            "gap, the buffer never closes, and Kindred never responds to anything — the "
+            "'it only works if you mute at the end' failure."
+        ),
+    )
+    transcript_wake_max_ms: int = Field(
+        default=4500,
+        description=(
+            "The ceiling once a wake word is in the buffer, measured from the wake. "
+            "Caps how long a question can take to reach the reasoning pipeline.\n\n"
+            "The trade-off runs both ways and only bites when the speaker never pauses: "
+            "too low truncates a long question mid-sentence, too high leaves the room "
+            "waiting. The default fits any question said at a normal pace. It costs "
+            "nothing in the ordinary case, where the silence gap fires first."
+        ),
+    )
 
     @property
     def webhook_url(self) -> str | None:
