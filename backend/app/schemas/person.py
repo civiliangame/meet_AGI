@@ -1,6 +1,6 @@
 """Person — someone who attends meetings.
 
-This is how Kindred knows *who* is talking and why they would say it. The `role` and
+This is how Meet AGI knows *who* is talking and why they would say it. The `role` and
 `bio` fields are fed to the reasoning model as context, so "VP Finance who owns the
 quarterly revenue model" materially changes how a revenue claim gets evaluated.
 """

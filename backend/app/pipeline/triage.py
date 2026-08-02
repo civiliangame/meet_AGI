@@ -7,6 +7,23 @@ The heuristic runs first and unconditionally, because it is free and it removes 
 the traffic. Only what survives reaches a model, and even then it is the cheap one. The
 ordering is the whole optimization: you should not pay frontier-model prices to decide
 whether "yeah, sounds good" is worth fact-checking.
+
+**Two gates, not one, and the second one is why arguments get caught.** The original
+gate asks "is there a checkable factual assertion here", which is the right question for
+*a claim that conflicts with a document* and precisely the wrong one for *a person
+disagreeing out loud*. Pushback is short, hedged, pronoun-heavy, and often phrased as a
+question — every single one of the claim gate's drop rules:
+
+    "No, that's not what the deck says."     7 words, no figure   → dropped
+    "Wait, didn't we say four point one?"    ends in a question   → dropped
+    "I think that number is wrong."          hedged               → dropped
+    "That contradicts what Sarah just said." no assertive verb    → dropped
+
+Ten of twelve real disagreement utterances died here, which meant the second half of
+every argument was invisible to the model and a contradiction spanning two turns could
+never be found. `looks_like_conflict` is the second gate: it looks for the shape of
+someone pushing back rather than the shape of a claim, and either gate is enough to
+earn a reasoning call.
 """
 
 from __future__ import annotations
@@ -66,6 +83,69 @@ _ASSERTIVE = re.compile(
 )
 
 
+MIN_CONFLICT_WORDS = 3
+"""Floor for the conflict gate. "No it isn't" is three words and is an argument."""
+
+# Someone saying the previous statement is wrong. These fire on their own.
+_DISPUTE = re.compile(
+    r"\b(disagree|disagrees|contradicts?|contradiction|contradictory|incorrect|mistaken|"
+    r"not right|not true|not correct|not what|isn t right|isn t true|isn t what|"
+    r"that s wrong|is wrong|are wrong|was wrong|the opposite|other way around|"
+    r"doesn t match|don t match|doesn t square|off by|no it isn t|no it wasn t|"
+    r"since when|says otherwise|beg to differ)\b"
+)
+
+# Pointing at something said or decided earlier. Half of a cross-turn contradiction.
+# The optional adverb slot matters more than it looks: "we *already* decided" and "you
+# *just* said" are how people actually phrase this, and requiring adjacency misses them.
+_PRIOR_REFERENCE = re.compile(
+    r"\b((i|you|we|she|he|they)\s+(already\s+|also\s+|just\s+|had\s+|have\s+|"
+    r"literally\s+)?(said|told|agreed|decided|thought|remember|mentioned|called)|"
+    r"didn t we|weren t we|wasn t it|wasn t that|a minute ago|earlier|"
+    r"last (week|month|quarter|time|meeting)|"
+    r"the (deck|doc|document|report|analysis|notes|model|data|numbers?) (says?|said|shows?|"
+    r"showed|has|had))\b"
+)
+
+# Reversal markers. Cheap and common, so they only count alongside something else.
+_CONTRAST = re.compile(r"\b(but|actually|however|though|except|whereas|instead)\b")
+_CONTRAST_OPENER = re.compile(
+    r"^(no|nope|but|wait|hold on|hang on|actually|however|hmm|sorry|um wait)\b"
+)
+
+
+def _normalize_for_conflict(text: str) -> str:
+    """Lowercase, apostrophes stripped, so "isn't" and "isn t" match the same pattern."""
+    return re.sub(r"[^\w\s]", " ", text.casefold())
+
+
+def looks_like_conflict(text: str) -> bool:
+    """Whether this utterance is somebody pushing back on what was just said.
+
+    Deliberately more permissive than the claim gate. A false positive here costs one
+    cheap model call and the model then says "none"; a false negative means the moment
+    the user actually wants flagged — two people openly disagreeing — is never even
+    looked at. DESIGN.md §6 makes that trade explicitly for triage.
+    """
+    words = text.split()
+    if len(words) < MIN_CONFLICT_WORDS:
+        return False
+
+    normalized = _normalize_for_conflict(text)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    if _DISPUTE.search(normalized):
+        return True
+
+    # A reversal on its own is far too common ("but anyway", "actually, moving on").
+    # Paired with a pointer at something already said, or with a figure being restated,
+    # it is the shape of a correction.
+    reversal = bool(_CONTRAST.search(normalized)) or bool(_CONTRAST_OPENER.match(normalized))
+    if not reversal:
+        return False
+    return bool(_PRIOR_REFERENCE.search(normalized)) or _has_figure(text)
+
+
 def heuristic_is_checkable(text: str) -> bool:
     """Free prefilter. Deliberately permissive — it only needs to drop the obvious."""
     words = text.split()
@@ -104,6 +184,15 @@ async def is_checkable_claim(text: str) -> tuple[bool, float]:
     """
     from ..store import store
 
+    # Conflict-shaped speech skips the claim gate *and* the classifier. The classifier is
+    # prompted to find factual assertions, so it says "not checkable" to "no, that's not
+    # what the deck says" — correctly by its own lights, and fatally for the feature.
+    # Whether that pushback is a real contradiction is the expensive model's call, and it
+    # is the one holding the transcript needed to make it.
+    if looks_like_conflict(text):
+        log.debug("conflict-shaped, routing straight to reasoning: %r", text[:80])
+        return True, 0.7
+
     if not heuristic_is_checkable(text):
         return False, 0.9
 
@@ -111,9 +200,11 @@ async def is_checkable_claim(text: str) -> tuple[bool, float]:
     if provider_name == "heuristic":
         return True, 0.6
 
-    # `tenstorrent` is a documented provider with no implementation yet (DESIGN.md §6).
-    # It resolves to the cheap Claude model rather than failing, so flipping the setting
-    # never breaks the pipeline.
+    # Note this ignores `triage.provider` beyond the `heuristic` check above: the
+    # registry picks the backend, so triage rides whatever reasoning is using — including
+    # Tenstorrent when `secure_meeting` is on. That is the point. Triage sees the raw
+    # utterance, so routing reasoning away from the cloud while still shipping every
+    # sentence to it for classification would leak exactly what the switch protects.
     provider = get_llm_provider()
     if provider is None:
         return True, 0.6

@@ -1,6 +1,6 @@
 """Just enough MPEG audio parsing to know how long a clip is.
 
-Kindred has to know a clip's duration to avoid talking over itself: Recall's
+Meet AGI has to know a clip's duration to avoid talking over itself: Recall's
 `output_audio` returns as soon as the clip is *accepted*, not when it finishes playing,
 so the only way to serialize speech is to hold for the clip's own length.
 
@@ -94,7 +94,7 @@ def mp3_duration_ms(data: bytes) -> int:
     Runs ~50-75 ms long against ffprobe: the LAME/Xing header occupies one otherwise
     empty frame that is counted like any other, and encoder delay and end padding are
     described in that header rather than being absent from the stream. Both errors point
-    the same way — the estimate is never short — so Kindred waits a fraction too long
+    the same way — the estimate is never short — so Meet AGI waits a fraction too long
     before its next clip rather than talking over its own tail. That is the direction to
     be wrong in, and it is well inside the padding between utterances anyway.
     """

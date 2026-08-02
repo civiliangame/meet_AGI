@@ -88,7 +88,7 @@ def dismiss(interjection_id: str, payload: InterjectionDismiss) -> Interjection:
 @router.post(
     "/{interjection_id}/speak",
     response_model=Interjection,
-    summary="Have Kindred say an interjection out loud",
+    summary="Have Meet AGI say an interjection out loud",
     description=(
         "Escalates a chat-only interjection to voice. **Milestone 7** performs the "
         "actual TTS; this marks `spoken` and drives the agent state so the UI can be built."
@@ -98,7 +98,7 @@ def speak(interjection_id: str) -> Interjection:
     meeting_id, index, interjection = _locate(interjection_id)
     meeting = store.meetings.get(meeting_id)
     if meeting is not None and meeting.agent_state in (AgentState.MUTED, AgentState.MUTED.value):
-        raise bad_request("Kindred is muted and cannot speak.", {"meeting_id": meeting_id})
+        raise bad_request("Meet AGI is muted and cannot speak.", {"meeting_id": meeting_id})
     return _replace(
         meeting_id,
         index,

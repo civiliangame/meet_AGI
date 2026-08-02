@@ -60,10 +60,11 @@ def _clear_caches():
 def _isolate_provider_cache():
     """Clear the memoized reasoning provider around every test.
 
-    `get_llm_provider` is `lru_cache`d so the process builds one client, which is right
-    in production and wrong in a suite: the first test to call it fixes the answer for
-    every test after it. A test that flips `LLM_PROVIDER` and expects a different
-    provider then passes alone and fails in the full run, purely on ordering.
+    `get_llm_provider` memoizes each client by provider name, which is right in
+    production and wrong in a suite: the first test to reach a given name fixes the
+    answer for every test after it. A test that flips `LLM_PROVIDER` or `secure_meeting`
+    and expects a different provider then passes alone and fails in the full run, purely
+    on ordering.
 
     Clearing on the way out as well as in keeps a test's own override from leaking
     forward.

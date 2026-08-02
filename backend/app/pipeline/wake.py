@@ -1,4 +1,4 @@
-"""Wake-word detection, and the kill phrase that shuts Kindred up.
+"""Wake-word detection, and the kill phrase that shuts Meet AGI up.
 
 Matched against *finalized* transcript for waking. Partials revise as they arrive, and a
 partial that briefly reads "hey a g..." fires a wake that the final then contradicts —
@@ -171,11 +171,13 @@ class WakeDetector:
         """Phrases nobody says by accident, so position alone is enough to wake on them.
 
         The property belongs to the *configured* phrase, not to the variant. "Hey AGI"
-        is two words and distinctive; "Kindred" is one word and an ordinary English one.
-        `kin dread` is a mangled spelling of the latter and has to inherit the latter's
-        caution, even though STT split it into two tokens — otherwise "kindred spirits,
-        the two of them" wakes the agent, which is the exact demo-day embarrassment
-        DESIGN.md §12 is about.
+        and "Meet AGI" are two words each and distinctive; a one-word alias that is also
+        an ordinary English word — "Kindred", the old name, was exactly this — is not.
+        A variant has to inherit its phrase's caution even when STT splits it into two
+        tokens (`kin dread` for `Kindred`), or "kindred spirits, the two of them" wakes
+        the agent, which is the exact demo-day embarrassment DESIGN.md §12 is about.
+        Both current phrases are distinctive, so the caution only bites on a one-word
+        alias someone configures later — the code still has to handle it.
         """
         seen: set[str] = set()
         for phrase in [wake_word, *(aliases or [])]:
@@ -247,7 +249,7 @@ class WakeDetector:
                     addressed = bool(words) and words[0] in _QUESTION_WORDS
                     # Same rule as the exact pass, and for the same reason: only a
                     # distinctive phrase gets to wake on position alone. A fuzzy hit on
-                    # "Kindred" opening a sentence about kindred spirits does not.
+                    # a one-word alias opening a sentence that merely contains it does not.
                     if index == 0:
                         if not (distinctive or not words or addressed):
                             continue
@@ -277,13 +279,13 @@ class WakeDetector:
     def _is_addressed(self, haystack: str, start: int, phrase: str) -> bool:
         """Whether this occurrence addresses the agent rather than mentioning it.
 
-        Punctuation is gone by this point, so the comma in "Kindred, what does..." is not
+        Punctuation is gone by this point, so the comma in "Meet AGI, what does..." is not
         available as a signal. Two things stand in for it:
 
-        - **How distinctive the phrase is.** "hey agi" is not something anyone says by
-          accident, so at the start of an utterance it is a wake on its own. A one-word
-          alias like "Kindred" is also an ordinary English word, and "kindred spirits,
-          the two of them" must not wake the agent mid-demo.
+        - **How distinctive the phrase is.** "hey agi" and "meet agi" are not things
+          anyone says by accident, so at the start of an utterance either is a wake on
+          its own. A one-word alias that is also an ordinary English word gets no such
+          credit — "kindred spirits, the two of them" must not wake the agent mid-demo.
         - **Question-shaped continuation.** Whatever the phrase, if what follows looks
           like a question or a command, it is being addressed to someone.
         """
@@ -294,7 +296,7 @@ class WakeDetector:
             return phrase in self._distinctive or not remainder or looks_addressed
 
         # Mid-utterance the bar is higher: the phrase has to be followed by a question,
-        # which rules out "we should call it hey agi" and "talking to Kindred about this".
+        # which rules out "we should call it hey agi" and "talking to Meet AGI about this".
         return looks_addressed
 
 
@@ -321,7 +323,7 @@ is about something else entirely.
 
 @dataclass(frozen=True)
 class StopMatch:
-    """Someone told Kindred to shut up."""
+    """Someone told Meet AGI to shut up."""
 
     matched_text: str
     """The stop verb that fired, for the log."""
@@ -334,7 +336,7 @@ class StopDetector:
 
     Deliberately *not* held to the wake detector's finalized-transcript rule. This is a
     kill switch: it runs on partial transcript so it fires while the speaker is still
-    saying it, and the worst a false positive can do is make Kindred stop talking —
+    saying it, and the worst a false positive can do is make Meet AGI stop talking —
     which is exactly what someone reaching for this phrase wants anyway.
 
     The rule is name plus verb, in either order, within a few tokens. Requiring the name

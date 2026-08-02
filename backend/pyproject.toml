@@ -1,7 +1,7 @@
 [project]
 name = "meet-agi-backend"
 version = "0.1.0"
-description = "Kindred — a Google Meet copilot that actually speaks. Backend."
+description = "Meet AGI — a Google Meet copilot that actually speaks. Backend."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",

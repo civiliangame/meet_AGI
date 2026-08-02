@@ -128,7 +128,7 @@ function Line({
           <span
             className="text-[10px]"
             style={{ color: "var(--text-faint)" }}
-            title="Not matched to a known person — Kindred had no context on this speaker"
+            title="Not matched to a known person — Meet AGI had no context on this speaker"
           >
             unidentified
           </span>
@@ -152,7 +152,7 @@ function Line({
             color: "var(--color-flag-500)",
           }}
         >
-          ↳ Kindred responded to this
+          ↳ Meet AGI responded to this
         </button>
       ) : null}
     </div>

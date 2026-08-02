@@ -55,7 +55,7 @@ export type Health = S["Health"];
 /** Everything a review page needs, from one `GET /api/meetings/{id}/bundle`. */
 export type MeetingBundle = S["MeetingBundle"];
 
-/** A document Kindred actually cited during a session, with the passages it used. */
+/** A document Meet AGI actually cited during a session, with the passages it used. */
 export type CitedDocument = S["CitedDocument"];
 export type SourceQuote = S["SourceQuote"];
 

@@ -1,6 +1,6 @@
 """Audio sinks — where a finished clip actually goes.
 
-The sink is the swap point for how Kindred's voice reaches the meeting:
+The sink is the swap point for how Meet AGI's voice reaches the meeting:
 
 - `RecallAudioSink`  → `POST /bot/{id}/output_audio/`. Complete clips, one at a time.
   Simple, works today, and adds roughly a second before the audio is audible.

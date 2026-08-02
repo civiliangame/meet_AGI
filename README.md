@@ -2,10 +2,10 @@
 
 **A Google Meet copilot that actually speaks.**
 
-The agent is called **Kindred**. It joins your meeting as a participant, hears every
+The agent is called **Meet AGI**. It joins your meeting as a participant, hears every
 speaker on a separate audio track, knows who each person is, and stays quiet.
 
-- **Ambient mode (default).** Kindred listens for factual claims and checks them against
+- **Ambient mode (default).** Meet AGI listens for factual claims and checks them against
   your documents *and* against what people said earlier in the same meeting. When it finds
   a real conflict, it flags it in the meeting chat and puts the full reasoning — with
   citations — in the dashboard.
@@ -88,13 +88,31 @@ handle_final_segment(segment)
                               triage → retrieve → find a contradiction → rate-limit → chat
 ```
 
-**The ambient loop only speaks up for a contradiction.** Not extra context, not a useful
-qualification, not an interesting related figure — a contradiction, meaning two specific
-statements that cannot both be true, each quoted verbatim: one from the documents or
-from earlier in the transcript, one from the utterance under review. A verdict that
-cannot produce both statements is dropped before it reaches the rate limiter, because a
-model that flags a conflict it cannot quote has reasoned its way there rather than read
-it off the page. Everything else stays quiet.
+**The ambient loop only speaks up for a contradiction — but an argument counts.** Two
+statements that cannot both be true, each quoted verbatim. That happens three ways: the
+claim contradicts a document, it contradicts something said earlier in the meeting, or
+two people are openly disagreeing right now. The third is the most valuable and used to
+be explicitly excluded. A verdict that cannot produce both statements is dropped before
+it reaches the rate limiter, because a model that flags a conflict it cannot quote has
+reasoned its way there rather than read it off the page.
+
+Triage runs **two** gates and either is enough. The claim gate asks "is there a checkable
+factual assertion here", which is right for a document conflict and exactly wrong for
+someone pushing back — pushback is short, hedged, pronoun-heavy, and often a question, so
+`"No, that's not what the deck says."` scored zero on every signal. The conflict gate
+looks for the shape of disagreement instead. On a real 322-utterance meeting log it adds
+two model calls; without it, ten of twelve real disagreement utterances never reached the
+model at all.
+
+**Every ambient decision is logged** — `no conflict in ...`, `CONTRADICTION ...`,
+`contradiction suppressed: ...`, `held back — autonomy is ...`. The loop used to be
+silent unless it fired, which made "never detects anything", "detects but the cooldown
+ate it", and "detects but autonomy is `propose`" indistinguishable from outside.
+
+**Detection needs both sides to exist.** A contradiction is only findable if `knowledge/`
+actually holds something that conflicts with what gets said. If you swap the corpus for a
+demo, plant a conflicting pair in the new one — `backend/tests/test_pipeline_parts.py`
+has a check that tells you when the planted pair has gone missing.
 
 **Reasoning runs on Gemini** (`gemini-3.5-flash-lite`), roughly 1-2s per call. Claude is
 still wired behind the same `LLMProvider` seam — set `LLM_PROVIDER=claude` to switch.
@@ -104,7 +122,7 @@ so a line arriving 20 seconds later isn't a non-sequitur. The model supplies the
 the prefix is applied server-side in `app/chat/sinks.py`, so it can't end up doubled or
 missing depending on how the model felt that turn.
 
-**The bot's camera shows what Kindred is doing.** `app/video/card.py` renders a 1280x720
+**The bot's camera shows what Meet AGI is doing.** `app/video/card.py` renders a 1280x720
 JPEG — agent state, the last headline, its citation — and pushes it via Recall's
 `output_video` whenever state changes. Recall's other path, Output Media, streams real
 MP4/GIF over a socket and is what you'd want for animation or an avatar; a replaceable
@@ -112,7 +130,7 @@ still is a fraction of the work and reads as live. The card observes the event b
 than being called from each site, because `agent.state_changed` is published from three
 places and wiring only one leaves the tile stuck on `thinking`.
 
-**Kindred talks while it thinks.** Retrieval plus generation is a couple of seconds, and
+**Meet AGI talks while it thinks.** Retrieval plus generation is a couple of seconds, and
 to a room that just asked a question out loud, silence reads as "it didn't hear me". So
 it plays a short filler first — *"Great question, on it now."* — in its own voice, then
 the answer. The lines are synthesized once and cached under
@@ -137,7 +155,7 @@ pgvector, and an embedding provider off the critical path. `app/knowledge/base.p
 
 ## Run it
 
-One command puts Kindred in the default meeting, starting the backend if it isn't up:
+One command puts Meet AGI in the default meeting, starting the backend if it isn't up:
 
 ```bash
 python scripts/kindred.py            # backend + dashboard + bot, after a preflight
@@ -148,7 +166,7 @@ python scripts/kindred.py --leave    # pull the bot out
 python scripts/kindred.py <meet-url> # a different meeting
 ```
 
-That is backend on `:5000`, dashboard on `:3000`, and Kindred in the meeting. It also
+That is backend on `:5000`, dashboard on `:3000`, and Meet AGI in the meeting. It also
 writes `frontend/.env.local` so the dashboard points at whichever port the backend is
 actually on — the frontend defaults to `:8000`, so without that the dashboard loads,
 looks entirely healthy, and shows nothing.
@@ -165,7 +183,7 @@ to pull its bots out of their meetings — a Recall bot is a server-side entity,
 the process that dispatched it only orphans it in the call until Recall's timeout. After
 the restart it sweeps Recall for any bot a previous crash left behind.
 
-It refuses to kill a process whose command line is not a Kindred server: port 5000 is
+It refuses to kill a process whose command line is not a Meet AGI server: port 5000 is
 also home to Flask and macOS AirPlay Receiver, and taking one of those down because it
 happens to hold the port is worse than stopping. `--force` overrides.
 
@@ -197,7 +215,7 @@ curl -X POST localhost:8000/api/dev/harness/start \
 
 Copy the returned `id` and connect to `ws://localhost:8000/api/meetings/{id}/live`.
 
-`GET /api/health` tells you what is actually wired up — whether Kindred will reason for
+`GET /api/health` tells you what is actually wired up — whether Meet AGI will reason for
 real or replay fixtures, speak with Inworld or play sample clips, and how many document
 chunks it loaded. Check it before blaming the demo.
 
@@ -205,7 +223,7 @@ chunks it loaded. Check it before blaming the demo.
 
 With a reasoning key set (`GEMINI_API_KEY`, or `ANTHROPIC_API_KEY`), the harness stops
 replaying its scripted conclusions and feeds the transcript to the live pipeline
-instead — Kindred has to *find* the planted contradiction in `knowledge/`, not be handed
+instead — Meet AGI has to *find* the planted contradiction in `knowledge/`, not be handed
 it. With no key everything still runs on canned output, so the frontend is buildable
 with an empty `.env`.
 
@@ -222,6 +240,21 @@ Tenstorrent), or force one with `gemini`, `claude`, `tenstorrent`, or `none`. Se
 — no code change, and `GET /api/health` reports which one is actually live. A
 `TENSTORRENT_API_KEY` on its own will not take over from Gemini; it sits last in the
 `auto` chain, so flipping the flag is the deliberate act.
+
+`secure_meeting` is the same switch without the restart. Off by default; turn it on from
+**Settings → Agent** (or `PATCH /api/settings {"secure_meeting": true}`) and every
+reasoning call — triage, ambient, speech — routes to Tenstorrent instead of the
+configured cloud provider, taking effect on the next call. The point is where a
+meeting's words get processed: an open-weight Qwen on Tenstorrent's own hardware rather
+than a third-party frontier API. It costs latency (§7 of DESIGN.md measures the answer
+path at ~9.3s) and some judgment quality, which is why it is opt-in per meeting rather
+than the default.
+
+If `TENSTORRENT_API_KEY` is unset while the toggle is on, reasoning falls back to the
+harness's canned output — **not** to Gemini. Quietly sending the transcript to the exact
+provider the operator just excluded would be the worst available failure, so the switch
+fails closed. `GET /api/health` reports the effective backend either way, including when
+secure mode has no key to run on.
 
 `autonomy` controls how far an interjection travels: `silent` (dashboard only),
 `propose` (waits for approval), `auto_post` (types into the meeting — the default).
@@ -250,7 +283,7 @@ is not running.
 Adding fields, enum variants, and event types is free and unannounced. **Renames and
 removals get a heads-up first** — two people are building against this in parallel.
 
-## Making Kindred speak
+## Making Meet AGI speak
 
 Real TTS runs on **Inworld** (`POST /tts/v1/voice`, mp3 out) whenever `INWORLD_API_KEY`
 is set; without it, the same path plays pre-baked sample clips and flags the utterance
@@ -282,7 +315,7 @@ events match a live bot, so the speaking UI can be built without one.
 Two things worth knowing:
 
 - **Recall requires `automatic_audio_output` at bot creation**, or the on-demand audio
-  endpoint is disabled for that bot's whole life. Every bot Kindred dispatches gets a
+  endpoint is disabled for that bot's whole life. Every bot Meet AGI dispatches gets a
   silent clip in that slot to keep the path open. `--announce greeting` replaces it with
   a spoken disclosure on join.
 - **`RECALL_API_KEY` is region-scoped** (`RECALL_REGION`, default `us-west-2`). A key

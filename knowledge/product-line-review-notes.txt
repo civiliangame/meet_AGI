@@ -1,45 +1,5 @@
-# product-line-review-notes
+Between July and August, CAC increased by 8% month over month, to $200 a customer because ByteDance cost per acquisition rose 20% — $166 to $200. ByteDance is 40% of your paid volume, so that's 6.8 of the 8 points on its own. The rest is mix. Source: marketing spend table, refreshed 6am today.
 
-Product line review — running notes. Owner: Marcus Webb, Head of Product.
-These notes track GROSS BOOKINGS. Finance reports NET revenue. The two diverge.
 
-## Q2 review — mid-market pricing
-
-Decision: defer the mid-market repricing to Q4, pending a churn read on the current
-price point.
-
-Rationale at the time: we did not have enough evidence that price was driving churn,
-and a repricing during the migration would have confounded the signal. The team agreed
-explicitly that the condition for revisiting was a clean churn read.
-
-Owner: Marcus. Revisit trigger: the August churn analysis.
-
-## Q2 review — packaging
-
-Agreed to hold packaging changes until the repricing decision is made. No change this
-quarter.
-
-## July bookings
-
-Gross bookings +8.4% MoM. July closed three mid-market deals above $40k ACV, which is
-what drives the increase.
-
-Important: this is a bookings number. It is not the same as the net revenue figure
-Finance carries in the board deck, and it is not adjusted for the August service credit
-or for contract-timing shifts. Quoting +8.4% alongside the board deck's revenue figures
-invites a direct contradiction, because the deck reports the new product line down
-12.1% MoM on a net basis.
-
-## August pipeline
-
-Pipeline going into Q4 looks healthy on a coverage basis: 3.1x on the new product line.
-Coverage is a leading indicator only. Two of the largest opportunities are with accounts
-that are already flagged as churn risks in the churn analysis, so the coverage number
-is more fragile than it appears.
-
-## Open questions for the quarterly review
-
-- Which definition goes in front of the board on Thursday: gross bookings or net
-  revenue? Both have been quoted in the same meeting before.
-- Does the August churn read now satisfy the condition we set in Q2 for reopening the
-  mid-market repricing?
+July's 3 claims are the same product line as the october 2023 claims. 
+In October 2023, two claims over $400,000 were made, both for critical illness policies written in 2022, when critical illness was 20% more of your new business mix. 

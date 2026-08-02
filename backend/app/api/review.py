@@ -1,6 +1,6 @@
 """Post-meeting review — sources, transcript search, and session housekeeping.
 
-The dashboard is a place for a human to check, after the fact, what Kindred said and
+The dashboard is a place for a human to check, after the fact, what Meet AGI said and
 what it read before saying it. These endpoints serve that.
 
 Mounted under `/api/meetings` alongside `meetings.py` rather than in it. Two routers can
@@ -44,7 +44,7 @@ def _finals(meeting_id: str) -> list[TranscriptSegment]:
 def _collect_sources(meeting_id: str) -> list[CitedDocument]:
     """Aggregate every citation in this session by the document it came from.
 
-    Ordered by citation count, so the documents Kindred leaned on hardest are first —
+    Ordered by citation count, so the documents Meet AGI leaned on hardest are first —
     that is the order a human auditing the session wants to read them in.
     """
     by_document: dict[str, CitedDocument] = {}
@@ -94,10 +94,10 @@ def _collect_sources(meeting_id: str) -> list[CitedDocument]:
     response_model=Page[CitedDocument],
     summary="Documents cited during a session",
     description=(
-        "What Kindred actually read before it spoke, aggregated from the citations on "
+        "What Meet AGI actually read before it spoke, aggregated from the citations on "
         "this session's interjections — not merely what was available to search. "
         "Ordered by citation count. This is the audit surface: it answers whether "
-        "Kindred looked at the right thing."
+        "Meet AGI looked at the right thing."
     ),
 )
 def get_sources(meeting_id: str) -> Page[CitedDocument]:

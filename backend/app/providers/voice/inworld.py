@@ -1,4 +1,4 @@
-"""Inworld TTS — Kindred's actual voice.
+"""Inworld TTS — Meet AGI's actual voice.
 
     POST https://api.inworld.ai/tts/v1/voice
     Authorization: Basic <INWORLD_API_KEY>
@@ -96,7 +96,7 @@ class InworldVoiceProvider:
         # An unknown voice id is a 404, and it is the likeliest misconfiguration here:
         # `Settings.voice.voice_id` is operator-editable and Inworld's catalogue is not
         # validated against it. Retry once in the configured voice rather than letting
-        # Kindred go silent for the rest of the meeting over a settings typo.
+        # Meet AGI go silent for the rest of the meeting over a settings typo.
         if response.status_code == 404 and requested_voice != self._voice_id:
             logger.warning(
                 "Inworld does not know voice %r; falling back to %r",
@@ -135,5 +135,5 @@ class InworldVoiceProvider:
         try:
             return AudioClip.from_mp3(mp3, text=spoken)
         except InvalidMp3 as exc:
-            # Duration drives how long Kindred holds `speaking`, so this has to be real.
+            # Duration drives how long Meet AGI holds `speaking`, so this has to be real.
             raise VoiceError(f"Inworld returned audio that is not decodable mp3: {exc}") from exc

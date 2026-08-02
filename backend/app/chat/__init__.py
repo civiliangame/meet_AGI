@@ -1,4 +1,4 @@
-"""Meeting chat — the channel Kindred types into.
+"""Meeting chat — the channel Meet AGI types into.
 
 Mirrors `app.audio.sinks`: a protocol, a Recall implementation, and a null one so the
 fixture harness exercises the same path with no bot attached.

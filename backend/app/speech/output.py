@@ -1,4 +1,4 @@
-"""Speech output — the one path by which Kindred's voice reaches a meeting.
+"""Speech output — the one path by which Meet AGI's voice reaches a meeting.
 
 Everything that wants to talk (speech mode, a spoken interjection, the demo CLI) goes
 through `SpeechOutput.say()`. Nothing else calls a sink or the Recall client directly.
@@ -66,7 +66,7 @@ class _Channel:
 
 
 class SpeechOutput:
-    """Serializes and plays Kindred's speech, one queue per meeting."""
+    """Serializes and plays Meet AGI's speech, one queue per meeting."""
 
     def __init__(
         self,
@@ -153,7 +153,7 @@ class SpeechOutput:
         clip_id: str | None = None,
         clip: AudioClip | None = None,
     ) -> Utterance:
-        """Queue something for Kindred to say. Returns immediately.
+        """Queue something for Meet AGI to say. Returns immediately.
 
         Exactly one of:
 
@@ -211,7 +211,7 @@ class SpeechOutput:
 
         This is what "AGI, stop talking" is wired to, so all three halves matter:
 
-        - **the queue** is drained, or Kindred goes quiet for a second and then carries
+        - **the queue** is drained, or Meet AGI goes quiet for a second and then carries
           on with the answer nobody wants any more;
         - **the playback task** is cancelled, so the worker stops sleeping out the
           current clip's duration and is free immediately;
@@ -261,7 +261,7 @@ class SpeechOutput:
         return channel.queue.qsize() if channel else 0
 
     def history(self, meeting_id: str) -> list[Utterance]:
-        """Everything Kindred has said in this meeting, oldest first."""
+        """Everything Meet AGI has said in this meeting, oldest first."""
         channel = self._channels.get(meeting_id)
         return list(channel.history) if channel else []
 
@@ -307,7 +307,7 @@ class SpeechOutput:
             # Checked here, not at enqueue time, so the kill switch also silences
             # everything that was already waiting.
             self._fail(utterance, "muted", status=UtteranceStatus.DROPPED)
-            logger.info("utterance %s dropped: Kindred is muted", utterance.id)
+            logger.info("utterance %s dropped: Meet AGI is muted", utterance.id)
             return
 
         try:

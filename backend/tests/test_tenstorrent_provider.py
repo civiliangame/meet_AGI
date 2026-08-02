@@ -213,3 +213,169 @@ async def test_registry_builds_the_provider_when_the_flag_is_flipped(monkeypatch
     finally:
         get_config.cache_clear()
         get_llm_provider.cache_clear()
+
+
+class TestSecureMeeting:
+    """The `secure_meeting` setting overrides the configured reasoning backend.
+
+    The switch exists so a meeting whose contents must not reach a third-party frontier
+    API can still be reasoned over — Tenstorrent serves an open-weight Qwen on its own
+    hardware. That makes these assertions about *where data goes*, not about which
+    object gets constructed, which is why the no-key case below is the important one.
+    """
+
+    @staticmethod
+    def _config(monkeypatch, **overrides):
+        from app.config import AppConfig, get_config
+        from app.providers.llm import get_llm_provider
+
+        get_config.cache_clear()
+        get_llm_provider.cache_clear()
+        settings = {
+            "llm_provider": "auto",
+            "gemini_api_key": None,
+            "anthropic_api_key": None,
+            **overrides,
+        }
+        config = AppConfig(_env_file=None, **settings)
+        monkeypatch.setattr("app.config.get_config", lambda: config)
+        return config
+
+    @staticmethod
+    def _secure(value: bool) -> None:
+        from app.store import store
+
+        store.settings = store.settings.model_copy(update={"secure_meeting": value})
+
+    def test_defaults_to_off(self):
+        from app.schemas import Settings
+
+        assert Settings().secure_meeting is False
+
+    def test_overrides_the_configured_provider(self, monkeypatch):
+        """Gemini is configured and healthy; the toggle sends reasoning elsewhere anyway."""
+        from app.config import get_config
+        from app.providers.llm import active_provider_name, get_llm_provider
+
+        self._config(monkeypatch, gemini_api_key="g", tenstorrent_api_key="k")
+        try:
+            assert active_provider_name() == "gemini"
+
+            self._secure(True)
+            assert active_provider_name() == "tenstorrent"
+            provider = get_llm_provider()
+            assert provider is not None and provider.name == "tenstorrent"
+        finally:
+            self._secure(False)
+            get_config.cache_clear()
+            get_llm_provider.cache_clear()
+
+    def test_never_falls_back_to_the_cloud_provider(self, monkeypatch):
+        """No Tenstorrent key: canned output, *not* a quiet fallback to Gemini.
+
+        This is the assertion the whole feature rests on. Falling back would send the
+        transcript to exactly the provider the operator just said to keep it away from,
+        and nothing in the UI would say so.
+        """
+        from app.config import get_config
+        from app.providers.llm import get_llm_provider
+
+        self._config(monkeypatch, gemini_api_key="g", tenstorrent_api_key=None)
+        try:
+            self._secure(True)
+            assert get_llm_provider() is None
+        finally:
+            self._secure(False)
+            get_config.cache_clear()
+            get_llm_provider.cache_clear()
+
+    def test_flipping_back_reuses_the_original_client(self, monkeypatch):
+        """Toggling mid-meeting must not leak an httpx client per flip."""
+        from app.config import get_config
+        from app.providers.llm import get_llm_provider
+
+        self._config(monkeypatch, gemini_api_key="g", tenstorrent_api_key="k")
+        try:
+            first = get_llm_provider()
+            self._secure(True)
+            secure = get_llm_provider()
+            self._secure(False)
+            assert get_llm_provider() is first
+            assert secure is not first
+        finally:
+            self._secure(False)
+            get_config.cache_clear()
+            get_llm_provider.cache_clear()
+
+    def test_patch_round_trips_through_the_api(self):
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+        from app.store import store
+
+        client = TestClient(app)
+        try:
+            assert client.get("/api/settings").json()["secure_meeting"] is False
+
+            body = client.patch("/api/settings", json={"secure_meeting": True}).json()
+            assert body["secure_meeting"] is True
+            assert client.get("/api/settings").json()["secure_meeting"] is True
+
+            # Omitted keys are untouched — the toggle must not reset autonomy or voice.
+            assert body["autonomy"] == "auto_post"
+            assert body["voice"]["provider"] == "inworld"
+
+            assert client.patch("/api/settings", json={"secure_meeting": False}).json()[
+                "secure_meeting"
+            ] is False
+        finally:
+            store.settings = store.settings.model_copy(update={"secure_meeting": False})
+
+    def test_health_reports_the_effective_backend(self, monkeypatch):
+        """`/api/health` answers "where are this meeting's words going". It must not
+        keep naming Gemini once the toggle has moved them."""
+        from fastapi.testclient import TestClient
+
+        from app.config import get_config
+        from app.main import app
+        from app.providers.llm import get_llm_provider
+
+        self._config(monkeypatch, gemini_api_key="g", tenstorrent_api_key="k")
+        client = TestClient(app)
+
+        def reasoning() -> dict:
+            providers = client.get("/api/health").json()["providers"]
+            return next(p for p in providers if p["name"] == "reasoning")
+
+        try:
+            assert "Gemini" in reasoning()["detail"]
+
+            self._secure(True)
+            detail = reasoning()
+            assert "Tenstorrent" in detail["detail"]
+            assert "Gemini" not in detail["detail"]
+            assert detail["configured"] is True
+        finally:
+            self._secure(False)
+            get_config.cache_clear()
+            get_llm_provider.cache_clear()
+
+    def test_health_is_honest_when_the_secure_key_is_missing(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from app.config import get_config
+        from app.main import app
+        from app.providers.llm import get_llm_provider
+
+        self._config(monkeypatch, gemini_api_key="g", tenstorrent_api_key=None)
+        client = TestClient(app)
+        try:
+            self._secure(True)
+            providers = client.get("/api/health").json()["providers"]
+            reasoning = next(p for p in providers if p["name"] == "reasoning")
+            assert reasoning["configured"] is False
+            assert "TENSTORRENT_API_KEY" in reasoning["detail"]
+        finally:
+            self._secure(False)
+            get_config.cache_clear()
+            get_llm_provider.cache_clear()

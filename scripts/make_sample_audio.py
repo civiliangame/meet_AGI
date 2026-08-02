@@ -1,4 +1,4 @@
-"""Generate the sample audio clips Kindred plays while there is no real TTS provider.
+"""Generate the sample audio clips Meet AGI plays while there is no real TTS provider.
 
 Recall's audio-output endpoints take **mp3 as base64**, so everything here ends up as
 mp3 regardless of how it was produced. Two producers, tried in order:
@@ -38,13 +38,13 @@ MANIFEST = ASSET_DIR / "manifest.json"
 # and a smaller payload means a smaller base64 body on every output_audio call.
 MP3_ARGS = ["-ac", "1", "-ar", "44100", "-b:a", "96k", "-codec:a", "libmp3lame"]
 
-# The clips Kindred can play. `id` is what the API and logs refer to; `text` is what the
+# The clips Meet AGI can play. `id` is what the API and logs refer to; `text` is what the
 # clip actually says, so the frontend timeline can show it without transcribing audio.
 CLIPS: list[dict[str, str]] = [
     {
         "id": "greeting",
         "text": (
-            "Kindred is here and listening. "
+            "Meet AGI is here and listening. "
             "I'll flag anything that conflicts with your documents."
         ),
     },
@@ -128,7 +128,7 @@ def _make_silence(dest: Path) -> None:
 
 
 def _make_chime(dest: Path) -> None:
-    """Two-note ack chime. Played when Kindred wakes, before it has anything to say."""
+    """Two-note ack chime. Played when Meet AGI wakes, before it has anything to say."""
     _run(
         [
             "ffmpeg", "-y",

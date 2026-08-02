@@ -1,4 +1,4 @@
-"""Interjection — the central object. Everything Kindred says or wants to say.
+"""Interjection — the central object. Everything Meet AGI says or wants to say.
 
 One interjection produces two artifacts, because Google Meet's chat caps messages at
 500 characters:
@@ -35,7 +35,7 @@ class InterjectionKind(str, Enum):
     ANSWER = "answer"
     """A response to a direct question in speech mode."""
     CLARIFICATION = "clarification"
-    """Kindred asking the human to disambiguate before answering."""
+    """Meet AGI asking the human to disambiguate before answering."""
 
 
 class InterjectionStatus(str, Enum):
@@ -80,7 +80,7 @@ class Interjection(Schema):
     confidence: float = Field(ge=0.0, le=1.0, examples=[0.82])
     citations: list[Citation] = Field(default_factory=list)
     spoken: bool = Field(
-        default=False, description="True when Kindred said this out loud rather than only in chat."
+        default=False, description="True when Meet AGI said this out loud rather than only in chat."
     )
     error: str | None = None
     created_at: Ts
@@ -100,10 +100,10 @@ class InterjectionDismiss(Schema):
 
 
 class AskRequest(Schema):
-    """Type a question straight to Kindred from the dashboard.
+    """Type a question straight to Meet AGI from the dashboard.
 
     This is the most valuable demo-recovery tool in the API. If wake-word detection
-    misfires on stage, type the question and Kindred still answers out loud.
+    misfires on stage, type the question and Meet AGI still answers out loud.
     """
 
     question: str = Field(min_length=1, max_length=2000)

@@ -106,7 +106,7 @@ async def check_claim(*, claim: str, speaker: str, transcript: str) -> Verdict:
     """Does this claim contradict the documents, or something already said?
 
     Contradictions only. A claim the documents merely add colour to is not something
-    Kindred says anything about.
+    Meet AGI says anything about.
     """
     provider = get_llm_provider()
     if provider is None:

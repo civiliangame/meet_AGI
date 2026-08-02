@@ -19,7 +19,7 @@ talking:
   gap only ever arrives if there is silence, and in a real meeting with an open mic
   there is not: breathing, keyboards, someone else's dog, and the next sentence all
   land inside the gap and reset it. The buffer then grows without ever flushing and
-  Kindred answers nothing at all until somebody mutes — which is precisely the bug this
+  Meet AGI answers nothing at all until somebody mutes — which is precisely the bug this
   ceiling exists to kill. Once a wake phrase is in the buffer both windows tighten,
   because at that point somebody is visibly waiting for an answer.
 
@@ -30,7 +30,7 @@ trusted to every consumer.
 
 **The kill phrase is the deliberate exception.** "AGI, stop talking" is checked against
 partials, before buffering, on every event. Acting a second early on a phrase whose only
-effect is silence is the right trade; acting a second late means Kindred talks over the
+effect is silence is the right trade; acting a second late means Meet AGI talks over the
 person telling it to stop.
 """
 

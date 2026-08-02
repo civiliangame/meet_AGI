@@ -27,7 +27,7 @@ class AudioClip:
     """The text that was *requested*, when the audio says something else.
 
     The sample voice provider plays a canned line no matter what it is asked to say.
-    Recording that here keeps the UI honest — it can show what Kindred meant to say and
+    Recording that here keeps the UI honest — it can show what Meet AGI meant to say and
     flag that the voice is still a stand-in, instead of silently lying about it.
     """
 

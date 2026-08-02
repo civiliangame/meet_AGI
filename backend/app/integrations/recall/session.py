@@ -1,6 +1,6 @@
 """Recall sessions — a dispatched bot bound to a `Meeting`.
 
-One session ties together the three things that have to stay in step for Kindred to
+One session ties together the three things that have to stay in step for Meet AGI to
 speak into a real meeting:
 
 - the **bot** Recall is running,
@@ -82,7 +82,7 @@ class RecallSessionManager:
         speech: SpeechOutput,
         store: Store | None = None,
         bus: EventBus | None = None,
-        bot_name: str = "Kindred",
+        bot_name: str = "Meet AGI",
     ) -> None:
         self._client = client
         self._speech = speech
@@ -111,7 +111,7 @@ class RecallSessionManager:
         """Dispatch a bot and register the meeting.
 
         `announce_clip_id` plays once when recording starts — a spoken disclosure that
-        Kindred is present. With no clip id the bot still gets a silent one, because
+        Meet AGI is present. With no clip id the bot still gets a silent one, because
         Recall disables the on-demand `output_audio` endpoint for any bot created without
         `automatic_audio_output`.
         """

@@ -1,8 +1,8 @@
-"""Meeting — one session Kindred is attending.
+"""Meeting — one session Meet AGI is attending.
 
-`state` is the meeting lifecycle. `agent_state` is what Kindred is doing right now, and
+`state` is the meeting lifecycle. `agent_state` is what Meet AGI is doing right now, and
 it is the single most important field in the demo: the audience watches the pill flip to
-`listening` the instant someone says "Kindred".
+`listening` the instant someone says "Meet AGI".
 
 `source` distinguishes a real Recall.ai bot from a fixture replay. Every consumer of the
 event stream should behave identically for both — that is the point of the harness.
@@ -43,7 +43,7 @@ class AgentState(str, Enum):
     SPEAKING = "speaking"
     """Currently outputting audio into the meeting."""
     MUTED = "muted"
-    """Hard override. Kindred will not post or speak until unmuted."""
+    """Hard override. Meet AGI will not post or speak until unmuted."""
 
 
 class MeetingSource(str, Enum):
@@ -64,7 +64,7 @@ class RosterEntry(Schema):
         default=False,
         description=(
             "Whether this participant was resolved to a known Person. Unmatched "
-            "participants should be visually flagged — Kindred has no context on them."
+            "participants should be visually flagged — Meet AGI has no context on them."
         ),
     )
     is_speaking: bool = False
@@ -77,7 +77,7 @@ class MeetingStats(Schema):
     interjection_count: int = 0
     duration_seconds: int = 0
     participant_count: int = Field(default=0, description="Distinct participants seen.")
-    wake_count: int = Field(default=0, description="Times Kindred was addressed by name.")
+    wake_count: int = Field(default=0, description="Times Meet AGI was addressed by name.")
     source_document_count: int = Field(
         default=0, description="Distinct documents cited during this session."
     )
@@ -106,7 +106,7 @@ class Meeting(Schema):
 class MeetingCreate(Schema):
     meeting_url: str = Field(
         min_length=8,
-        description="Google Meet URL. Kindred dispatches a bot to join.",
+        description="Google Meet URL. Meet AGI dispatches a bot to join.",
         examples=["https://meet.google.com/abc-defg-hij"],
     )
     title: str | None = Field(default=None, max_length=200)
@@ -125,11 +125,11 @@ class MuteRequest(Schema):
 
 # --- Post-meeting review ---------------------------------------------------------
 # The dashboard is a place to check sources and transcript *after* a meeting, so these
-# types answer "what did Kindred claim, and what did it read to get there?"
+# types answer "what did Meet AGI claim, and what did it read to get there?"
 
 
 class SourceQuote(Schema):
-    """One passage Kindred cited, and every claim that leaned on it.
+    """One passage Meet AGI cited, and every claim that leaned on it.
 
     Deduplicated by passage rather than listed per citation: two claims citing the same
     line of a deck is one piece of evidence used twice, and rendering the identical
@@ -146,11 +146,11 @@ class SourceQuote(Schema):
 
 
 class CitedDocument(Schema):
-    """A document Kindred actually cited during a session.
+    """A document Meet AGI actually cited during a session.
 
     Aggregated from the citations on that session's interjections, so this is what was
     genuinely used, not merely what was available to search. That distinction is the
-    point of the review screen: it lets a human audit whether Kindred read the right
+    point of the review screen: it lets a human audit whether Meet AGI read the right
     thing before it spoke.
     """
 

@@ -1,4 +1,4 @@
-"""Recall real-time webhook — where Kindred's ears are.
+"""Recall real-time webhook — where Meet AGI's ears are.
 
 Recall POSTs one event per transcript utterance and per participant change to this
 endpoint during a live call. It is the only inbound path from the meeting, and the thing

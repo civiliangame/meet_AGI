@@ -6,7 +6,7 @@ import type { CitedDocument, Interjection } from "@/lib/api/types";
 /**
  * The audit surface.
  *
- * Of everything Kindred could have read, this is what it actually used. Every passage
+ * Of everything Meet AGI could have read, this is what it actually used. Every passage
  * links back to the claim that used it, which is the hop that makes the reasoning
  * checkable rather than merely presented.
  */
@@ -25,7 +25,7 @@ export function SourcesView({
     return (
       <Empty
         title="No sources cited in this session."
-        hint="Kindred did not reference any documents — nothing here to audit."
+        hint="Meet AGI did not reference any documents — nothing here to audit."
       />
     );
   }

@@ -2,7 +2,7 @@
   "name": "meet-agi-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "Kindred dashboard — config and live meeting view.",
+  "description": "Meet AGI dashboard — config and live meeting view.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

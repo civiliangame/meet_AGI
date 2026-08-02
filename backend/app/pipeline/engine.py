@@ -81,7 +81,7 @@ QUESTION_CAPTURE_SECONDS = 20.0
 """How long to wait for the question after a bare wake word. DESIGN.md §5 step 2."""
 
 ACK_CLIP_ID = "chime"
-"""Played on wake, before Kindred has an answer. Confirms it is listening."""
+"""Played on wake, before Meet AGI has an answer. Confirms it is listening."""
 
 
 class _PendingQuestion:
@@ -198,7 +198,7 @@ class PipelineEngine:
     # --- the kill phrase --------------------------------------------------------------
 
     def stop_match(self, text: str):
-        """Whether this text tells Kindred to shut up. Safe to call on partials."""
+        """Whether this text tells Meet AGI to shut up. Safe to call on partials."""
         return self._stop_detector_for(store.settings).match(text)
 
     def sees_wake(self, text: str) -> bool:
@@ -216,7 +216,7 @@ class PipelineEngine:
     async def handle_stop(
         self, meeting_id: str, *, source: str = "someone", force: bool = False
     ) -> list[Utterance]:
-        """Cut Kindred off. Returns the utterances that were discarded.
+        """Cut Meet AGI off. Returns the utterances that were discarded.
 
         Called straight from ingest the moment the phrase is heard, ahead of the
         per-meeting lock, because every step is an abort:
@@ -224,7 +224,7 @@ class PipelineEngine:
         1. cancel the reasoning already in flight, so an answer that is half generated
            never arrives thirty seconds later to a room that asked for silence;
         2. drop the pending-question window, so the next thing anyone says is not
-           mistaken for the question Kindred was still waiting for;
+           mistaken for the question Meet AGI was still waiting for;
         3. cut the audio — queue and current clip both.
 
         Order matters. Cancelling reasoning first means nothing can enqueue new speech
@@ -239,7 +239,7 @@ class PipelineEngine:
             return []
         self._last_stop[meeting_id] = time.monotonic()
 
-        log.info("STOP in %s — %s told Kindred to stop talking", meeting_id, source)
+        log.info("STOP in %s — %s told Meet AGI to stop talking", meeting_id, source)
 
         cancelled = 0
         for task in list(self._by_meeting.get(meeting_id, ())):
@@ -382,9 +382,16 @@ class PipelineEngine:
         catching something, and the room does not need it.
         """
         meeting_id = segment.meeting_id
+        quote = segment.text[:70]
 
+        # Every branch below logs. The ambient loop used to be completely silent unless
+        # it fired, so "it never comments" and "it comments but the chat sink is broken"
+        # and "the model says none every time" all looked identical from the outside —
+        # which is exactly the position this feature was debugged from. One line per
+        # utterance is cheap next to the model call it is reporting on.
         checkable, _ = await is_checkable_claim(segment.text)
         if not checkable:
+            log.debug("[%s] ambient skip (not checkable): %r", meeting_id, quote)
             return
 
         transcript = self.memory.for_meeting(meeting_id).render(exclude_segment_id=segment.id)
@@ -392,20 +399,24 @@ class PipelineEngine:
             claim=segment.text, speaker=segment.speaker_name, transcript=transcript
         )
         if not verdict.is_flag:
-            return
-
-        decision = self.gate.check(meeting_id, verdict.confidence)
-        if not decision:
-            self.gate.record_suppressed(meeting_id, decision.reason)
+            log.info("[%s] ambient: no conflict in %r", meeting_id, quote)
             return
 
         log.info(
-            "CONTRADICTION in %s (%.2f) — %r vs %r",
+            "[%s] CONTRADICTION (%.2f) — %r vs %r",
             meeting_id,
             verdict.confidence,
             verdict.statement_a[:60],
             verdict.statement_b[:60],
         )
+
+        decision = self.gate.check(meeting_id, verdict.confidence)
+        if not decision:
+            # Logged loudly. A real contradiction that the room never heard because of a
+            # cooldown is a product decision, and it should be visible as one.
+            log.warning("[%s] contradiction suppressed: %s", meeting_id, decision.reason)
+            self.gate.record_suppressed(meeting_id, decision.reason)
+            return
 
         autonomy = store.settings.autonomy
         posting = autonomy == Autonomy.AUTO_POST
@@ -430,6 +441,15 @@ class PipelineEngine:
 
         if posting:
             await chat_router.post(meeting_id, interjection.chat_alert)
+        else:
+            # The other reason "it never comments" looks like a detection failure when it
+            # is not: the contradiction was found and the autonomy level held it back.
+            log.warning(
+                "[%s] contradiction held back — autonomy is %s, so it reached the "
+                "dashboard but not the meeting",
+                meeting_id,
+                autonomy.value,
+            )
 
     # --- shared helpers --------------------------------------------------------------
 
@@ -449,7 +469,7 @@ class PipelineEngine:
         await self._say(meeting_id, clip_id=clip_id)
 
     async def say_filler(self, meeting_id: str) -> None:
-        """Queue a cached "let me look that up" line, in Kindred's own voice.
+        """Queue a cached "let me look that up" line, in Meet AGI's own voice.
 
         Falls back to the sample provider's `checking` clip, which says much the same
         thing — so this works whether or not real TTS is configured, and a filler that
@@ -580,5 +600,5 @@ def handle_final_segment(segment: TranscriptSegment) -> None:
 async def handle_stop(
     meeting_id: str, *, source: str = "someone", force: bool = False
 ) -> list[Utterance]:
-    """Cut Kindred off mid-sentence. Called from ingest on the kill phrase."""
+    """Cut Meet AGI off mid-sentence. Called from ingest on the kill phrase."""
     return await engine.handle_stop(meeting_id, source=source, force=force)

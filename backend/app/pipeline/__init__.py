@@ -1,4 +1,4 @@
-"""The reasoning pipeline: what Kindred does after every person finishes speaking.
+"""The reasoning pipeline: what Meet AGI does after every person finishes speaking.
 
     handle_final_segment(segment)
         │

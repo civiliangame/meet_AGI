@@ -1,4 +1,4 @@
-# Kindred dashboard — frontend design doc
+# Meet AGI dashboard — frontend design doc
 
 **Audience: the engineer (or Claude Code instance) building the frontend.** Everything
 here is implementable today against a running backend. No feature described below is
@@ -11,19 +11,19 @@ product and screen spec.
 
 ## 1. What this product is
 
-**A place for a human to check, after a meeting, what Kindred said and what it read
+**A place for a human to check, after a meeting, what Meet AGI said and what it read
 before saying it.**
 
-Kindred is an AI that sits in a Google Meet, fact-checks claims against your documents,
+Meet AGI is an AI that sits in a Google Meet, fact-checks claims against your documents,
 and speaks up. That is a strong claim to make about someone's revenue numbers in front of
-their CEO. So the dashboard's job is not to look impressive — it is to make Kindred
+their CEO. So the dashboard's job is not to look impressive — it is to make Meet AGI
 **auditable**.
 
 Every screen should serve one question: *can I verify this?*
 
 The single most important interaction in the product:
 
-> Kindred said Marcus's revenue number conflicts with the Q3 deck.
+> Meet AGI said Marcus's revenue number conflicts with the Q3 deck.
 > **Show me exactly where Marcus said it, and exactly what the deck says.**
 
 If that takes more than one click in either direction, the design has failed.
@@ -125,7 +125,7 @@ Flag rows where `source === "harness"` discreetly — during development every s
 fixture, and you will want to tell them apart from real ones at a glance.
 
 Empty state matters: a first-run user sees this screen with nothing on it. Say what to do
-("No sessions yet — Kindred will appear here after its first meeting"), and in dev, a
+("No sessions yet — Meet AGI will appear here after its first meeting"), and in dev, a
 button that calls `api.dev.startHarness("q3_revenue_review", 50)` earns its place.
 
 Deleting: `api.meetings.remove(id)` — irreversible, so confirm.
@@ -152,7 +152,7 @@ is that they cross-link.
 
 #### View A — Claims (default)
 
-The list of `interjections`. This is what Kindred *did*, and it is what people came to
+The list of `interjections`. This is what Meet AGI *did*, and it is what people came to
 look at, so it opens first.
 
 Each card:
@@ -160,10 +160,10 @@ Each card:
 - **`headline`** — the claim, one line, prominent.
 - **`kind`** badge — `contradiction` · `context` · `correction` · `answer` ·
   `clarification`. These mean different things and should look different. A
-  `contradiction` is Kindred disagreeing with a human; an `answer` is Kindred being
+  `contradiction` is Meet AGI disagreeing with a human; an `answer` is Meet AGI being
   asked. Do not render them identically.
 - **`trigger.quote`** — what someone said that caused this. Render as a quotation,
-  visually distinct from Kindred's own words. **Clicking it jumps to that line in the
+  visually distinct from Meet AGI's own words. **Clicking it jumps to that line in the
   transcript.**
 - **`body_md`** — the reasoning. Markdown. This is the substance; give it room.
 - **`citations[]`** — expandable. Each has `filename`, `page`, and `quote`. **Render
@@ -172,10 +172,10 @@ Each card:
 - **`chat_alert`** — what the meeting actually saw in Google Meet chat. Show it, visually
   marked as "what was posted", distinct from `body_md`. Users will ask "what did everyone
   else see?" and this answers it.
-- **`spoken`** — if true, Kindred said this out loud. Worth an icon; it is a meaningfully
+- **`spoken`** — if true, Meet AGI said this out loud. Worth an icon; it is a meaningfully
   louder action than typing in chat.
 
-An interjection with **no citations** is Kindred asserting something unsupported. That is
+An interjection with **no citations** is Meet AGI asserting something unsupported. That is
 exactly what an auditor is looking for, so make it visible rather than rendering an empty
 section.
 
@@ -194,7 +194,7 @@ Deep-linkable: `/sessions/[id]?claim=itj_…` should scroll to and highlight one
   `interjection.trigger.segment_ids` gets an inline marker linking to that claim. This is
   the reverse direction of the core traversal and it is easy to forget.
 - Segments where `person_id` is null are unidentified speakers — style them differently.
-  Kindred had no context on that person, which affects how much to trust its reasoning
+  Meet AGI had no context on that person, which affects how much to trust its reasoning
   about what they said.
 
 Search, server-side:
@@ -213,7 +213,7 @@ did they say about X" question, which is most of why someone opens a transcript.
 `bundle.sources` — `CitedDocument[]`, ordered by citation count.
 
 **This is the audit surface and the reason the product is trustworthy.** It answers: *of
-everything Kindred could have read, what did it actually use?*
+everything Meet AGI could have read, what did it actually use?*
 
 Per document: `filename`, `citation_count`, and the `quotes[]` it pulled. Each
 `SourceQuote` has `page`, `quote`, `relevance`, and `interjection_id` — so every passage
@@ -235,7 +235,7 @@ you where the meeting's real disagreement was.
 Four sections. Less design-sensitive than review; make it correct and legible.
 
 **People** — CRUD over `api.people`. `display_name`, `role`, `org`, `email`, `bio`,
-`aliases[]`. Worth a sentence in the UI: this is how Kindred knows who is talking and why
+`aliases[]`. Worth a sentence in the UI: this is how Meet AGI knows who is talking and why
 they would say it. `role` and `bio` are fed to the reasoning model, so "VP Finance who
 owns the revenue model" genuinely changes how a revenue claim is judged. `aliases` matter
 because transcripts say "Sarah" when the roster says "Sarah Chen".
@@ -253,11 +253,11 @@ badge disappears with no code change.
 **Agent** — `api.settings`. The one that needs care is `autonomy`, because it is a trust
 decision, not a preference. Use plain language:
 
-- `silent` — "Kindred never speaks or posts. Findings appear here only."
-- `propose` — "Kindred asks before posting to the meeting."
-- `auto_post` — "Kindred posts to the meeting chat on its own." ← current default
+- `silent` — "Meet AGI never speaks or posts. Findings appear here only."
+- `propose` — "Meet AGI asks before posting to the meeting."
+- `auto_post` — "Meet AGI posts to the meeting chat on its own." ← current default
 
-Also here: `wake_word` (default **"Hey AGI"**), `wake_aliases` (default `["Kindred"]`),
+Also here: `wake_word` (default **"Hey AGI"**), `wake_aliases` (default `["Meet AGI"]`),
 `interjection.min_confidence` / `cooldown_seconds` / `max_per_meeting`, voice, persona.
 
 ⚠️ **PATCH replaces nested objects wholesale.** To change one cooldown, send the complete
@@ -357,17 +357,17 @@ tiles. The content is prose, quotations, and provenance.
 - **Density over decoration.** A session has 20+ transcript groups and several claims with
   nested citations. Generous line-height and restrained chrome beat cards-in-cards.
 - **Typographic hierarchy carries the structure.** Three distinct voices need to stay
-  visually separate at a glance: what a **human said** (`trigger.quote`), what **Kindred
+  visually separate at a glance: what a **human said** (`trigger.quote`), what **Meet AGI
   concluded** (`body_md`), and what a **document says** (`citation.quote`). Give the two
   quotation types a consistent treatment — a left rule, a tinted ground, a monospace face
-  — and never let them read like Kindred's own prose.
+  — and never let them read like Meet AGI's own prose.
 - **Provenance is the visual motif.** Every claim should look *attached* to its evidence,
   not merely adjacent to it. Connecting lines, shared accent colour per document, hover
   affordances between linked elements.
 - **Colour carries meaning, sparingly.** Reserve it for `kind` badges, speaker identity,
   and the agent state pill. Everything else neutral.
 - **Restraint on `contradiction`.** It is tempting to make it alarming — red, bold, an
-  icon. But Kindred is contradicting a person, sometimes wrongly, and an aggressive
+  icon. But Meet AGI is contradicting a person, sometimes wrongly, and an aggressive
   treatment makes a false positive feel like an accusation. Make it *noticeable* and
   *neutral*, and let the evidence argue.
 
@@ -405,7 +405,7 @@ Steps 1–5 are the product. Ship those well before starting 7.
 | Real Google Meet: join, speak, chat | ✅ works with `RECALL_API_KEY` |
 | Real Google Meet: **hearing the meeting** | ⬜ **not built** — live transcript ingestion is the backend's open work |
 
-That last row is worth understanding: today Kindred can join a real meeting and talk, but
+That last row is worth understanding: today Meet AGI can join a real meeting and talk, but
 its transcript only comes from the fixture harness. It does not change anything you build
 — the event stream and the session records are identical either way — but it is why every
 session you see during development says `source: "harness"`.

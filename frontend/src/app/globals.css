@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* Kindred is a reading tool, not a metrics dashboard. The palette is mostly neutral
-   so that the three voices on a claim card — what a human said, what Kindred
+/* Meet AGI is a reading tool, not a metrics dashboard. The palette is mostly neutral
+   so that the three voices on a claim card — what a human said, what Meet AGI
    concluded, what a document says — can be told apart by treatment rather than by
    competing with decorative colour. */
 
@@ -64,7 +64,7 @@ body {
 }
 
 /* Quotations are evidence. Both kinds get a left rule so they read as "someone else's
-   words" at a glance, never as Kindred's own prose. */
+   words" at a glance, never as Meet AGI's own prose. */
 .quote-human {
   border-left: 2px solid var(--color-accent-500);
   background: color-mix(in srgb, var(--color-accent-500) 7%, transparent);

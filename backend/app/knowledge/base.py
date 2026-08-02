@@ -4,7 +4,7 @@ Retrieval is a keyword prefilter, not semantic search. It exists to keep the rea
 prompt small enough to be fast, not to be the final word on relevance — Claude reads the
 chunks that survive and decides what actually matters. Recall matters far more than
 precision here: a chunk wrongly included costs a few hundred tokens, a chunk wrongly
-excluded is a fact Kindred cannot see.
+excluded is a fact Meet AGI cannot see.
 """
 
 from __future__ import annotations
@@ -209,7 +209,7 @@ def load_knowledge_base(directory: Path | None = None) -> KnowledgeBase:
     directory = directory or KNOWLEDGE_DIR
     if not directory.exists():
         log.warning(
-            "no knowledge directory at %s — Kindred has nothing to check claims against",
+            "no knowledge directory at %s — Meet AGI has nothing to check claims against",
             directory,
         )
         return KnowledgeBase([])

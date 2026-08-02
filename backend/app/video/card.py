@@ -1,4 +1,4 @@
-"""Kindred's video tile — a status card rendered onto the bot's camera.
+"""Meet AGI's video tile — a status card rendered onto the bot's camera.
 
 Meeting platforms have no notion of "a bot with a UI": whatever you want people to see
 is a participant's video stream. Recall exposes two ways to drive it, and this uses the
@@ -14,7 +14,7 @@ Constraints come from Recall's guidance and are why the layout looks the way it 
 1280x720 JPEG, ≤1.3 MB, text ≥50px, solid colours, and — because Google Meet crops the
 tile at small sizes — content kept inside a centre safe zone rather than the full frame.
 
-Pushes are coalesced. Kindred can change state three times in a second, and each push is
+Pushes are coalesced. Meet AGI can change state three times in a second, and each push is
 a ~150 KB upload; sending every one would spend the meeting's bandwidth animating a
 label nobody is reading that fast.
 """
@@ -99,7 +99,7 @@ def render(state: CardState) -> bytes:
     draw.rectangle([0, 0, WIDTH, 12], fill=accent)
 
     y = SAFE_Y
-    draw.text((SAFE_X, y), "KINDRED", font=_font(46, bold=True), fill=_FG)
+    draw.text((SAFE_X, y), "MEET AGI", font=_font(46, bold=True), fill=_FG)
     y += 66
 
     label = _STATE_LABEL.get(state.agent_state, state.agent_state.upper())
@@ -137,7 +137,7 @@ def render(state: CardState) -> bytes:
 
 
 class VideoCard:
-    """Keeps one meeting's bot tile in sync with what Kindred is doing."""
+    """Keeps one meeting's bot tile in sync with what Meet AGI is doing."""
 
     def __init__(self) -> None:
         self._last: dict[str, CardState] = {}
@@ -201,7 +201,7 @@ class VideoCard:
         Watching the bus rather than being called from each site is what makes the tile
         correct: `agent.state_changed` is published from the engine, the speech queue,
         *and* the `/ask` endpoint, and a hand-wired call from only one of them leaves the
-        card showing `thinking` long after Kindred stopped.
+        card showing `thinking` long after Meet AGI stopped.
         """
         meeting_id = frame.get("meeting_id")
         if not meeting_id:

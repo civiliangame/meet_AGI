@@ -1,7 +1,7 @@
 """Meetings, transcript access, and live agent control.
 
 The three control endpoints (`/wake`, `/mute`, `/ask`) are stage insurance. If wake-word
-detection misfires during the demo, you drive Kindred from the dashboard instead and the
+detection misfires during the demo, you drive Meet AGI from the dashboard instead and the
 audience never knows. Build them into the UI early rather than treating them as debug
 tools.
 """
@@ -95,7 +95,7 @@ def list_meetings(
     "",
     response_model=Meeting,
     status_code=201,
-    summary="Send Kindred to a meeting",
+    summary="Send Meet AGI to a meeting",
     description=(
         "Dispatches a Recall.ai bot and returns immediately with the meeting in "
         "`joining`. The bot is not audible until someone admits it from the Google Meet "
@@ -156,7 +156,7 @@ def get_meeting(meeting_id: str) -> Meeting:
     return _require(meeting_id)
 
 
-@router.post("/{meeting_id}/leave", response_model=Meeting, summary="Make Kindred leave")
+@router.post("/{meeting_id}/leave", response_model=Meeting, summary="Make Meet AGI leave")
 async def leave_meeting(meeting_id: str, runtime: Runtime = Depends(get_runtime)) -> Meeting:
     meeting = _require(meeting_id)
     if task := store.harness_tasks.pop(meeting_id, None):
@@ -210,16 +210,16 @@ def get_interjections(
 @router.post(
     "/{meeting_id}/wake",
     response_model=Meeting,
-    summary="Wake Kindred manually",
+    summary="Wake Meet AGI manually",
     description=(
-        "Puts Kindred into `listening` without the wake word. This is the demo safety "
+        "Puts Meet AGI into `listening` without the wake word. This is the demo safety "
         "net for wake-word false negatives — put it behind a visible button."
     ),
 )
 def wake(meeting_id: str) -> Meeting:
     meeting = _require(meeting_id)
     if meeting.agent_state == AgentState.MUTED:
-        raise bad_request("Kindred is muted. Unmute before waking.", {"meeting_id": meeting_id})
+        raise bad_request("Meet AGI is muted. Unmute before waking.", {"meeting_id": meeting_id})
     _set_agent_state(meeting, AgentState.LISTENING, "woken manually from the dashboard")
     return meeting
 
@@ -227,8 +227,8 @@ def wake(meeting_id: str) -> Meeting:
 @router.post(
     "/{meeting_id}/mute",
     response_model=Meeting,
-    summary="Mute or unmute Kindred",
-    description="Hard override. While muted Kindred will not post to chat or speak.",
+    summary="Mute or unmute Meet AGI",
+    description="Hard override. While muted Meet AGI will not post to chat or speak.",
 )
 def mute(meeting_id: str, payload: MuteRequest) -> Meeting:
     meeting = _require(meeting_id)
@@ -243,13 +243,13 @@ def mute(meeting_id: str, payload: MuteRequest) -> Meeting:
 @router.post(
     "/{meeting_id}/ask",
     response_model=Interjection,
-    summary="Ask Kindred a question directly",
+    summary="Ask Meet AGI a question directly",
     description=(
-        "Type a question from the dashboard. With `speak: true` Kindred also says the "
+        "Type a question from the dashboard. With `speak: true` Meet AGI also says the "
         "answer into the meeting.\n\n"
         "This runs the same retrieval and reasoning that the spoken wake word does, so "
         "it is a genuine substitute rather than a demo prop: if wake detection misfires "
-        "on stage, type the question and Kindred still answers correctly, out loud.\n\n"
+        "on stage, type the question and Meet AGI still answers correctly, out loud.\n\n"
         "With no `ANTHROPIC_API_KEY` configured it returns a placeholder answer so the "
         "card, citations, and speaking flow can still be built against it."
     ),
@@ -259,7 +259,7 @@ async def ask(
 ) -> Interjection:
     meeting = _require(meeting_id)
     if meeting.agent_state == AgentState.MUTED and payload.speak:
-        raise bad_request("Kindred is muted and cannot speak.", {"meeting_id": meeting_id})
+        raise bad_request("Meet AGI is muted and cannot speak.", {"meeting_id": meeting_id})
 
     bus.publish_meeting(
         meeting_id,
@@ -340,7 +340,7 @@ def _placeholder_answer(meeting_id: str, payload: AskRequest) -> Interjection:
         kind=InterjectionKind.ANSWER,
         status=InterjectionStatus.POSTED,
         chat_alert=(
-            "\U0001f5e3️ Kindred has no reasoning provider configured "
+            "\U0001f5e3️ Meet AGI has no reasoning provider configured "
             "(ANTHROPIC_API_KEY is unset), so this is a placeholder answer."
         ),
         headline=f"Answer: {payload.question[:120]}",
@@ -361,6 +361,6 @@ def _placeholder_answer(meeting_id: str, payload: AskRequest) -> Interjection:
 async def _return_to_idle(meeting_id: str, after_seconds: float) -> None:
     await asyncio.sleep(after_seconds)
     meeting = store.meetings.get(meeting_id)
-    # Do not stomp a mute the operator applied while Kindred was talking.
+    # Do not stomp a mute the operator applied while Meet AGI was talking.
     if meeting is not None and meeting.agent_state == AgentState.SPEAKING:
         _set_agent_state(meeting, AgentState.IDLE)

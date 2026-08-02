@@ -1,4 +1,4 @@
-"""Document — the context Kindred checks claims against.
+"""Document — the context Meet AGI checks claims against.
 
 Uploads return immediately with `status: "pending"` and progress through the pipeline
 asynchronously. The frontend should render the status chip and not assume a freshly

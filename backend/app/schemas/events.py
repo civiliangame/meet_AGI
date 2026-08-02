@@ -80,7 +80,7 @@ class WakeDetectedData(Schema):
     segment_id: str
     matched_text: str = Field(
         description="The span that matched the wake word, for debugging false positives.",
-        examples=["Kindred, what happened to"],
+        examples=["Meet AGI, what happened to"],
     )
 
 
@@ -98,7 +98,7 @@ class AnsweredData(Schema):
 
 
 class SpeechInterruptedData(Schema):
-    """Kindred was cut off — the kill phrase, or the interrupt endpoint."""
+    """Meet AGI was cut off — the kill phrase, or the interrupt endpoint."""
 
     source: str = Field(
         description="Who or what stopped it: a speaker's display name, or 'dashboard'.",

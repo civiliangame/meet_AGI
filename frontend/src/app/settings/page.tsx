@@ -6,9 +6,9 @@ import { api } from "@/lib/api/client";
 import type { Document, Integration, Person, Settings } from "@/lib/api/types";
 
 const AUTONOMY: { value: string; label: string; blurb: string }[] = [
-  { value: "silent", label: "Silent", blurb: "Kindred never speaks or posts. Findings appear here only." },
-  { value: "propose", label: "Propose", blurb: "Kindred asks before posting to the meeting." },
-  { value: "auto_post", label: "Auto-post", blurb: "Kindred posts to the meeting chat on its own." },
+  { value: "silent", label: "Silent", blurb: "Meet AGI never speaks or posts. Findings appear here only." },
+  { value: "propose", label: "Propose", blurb: "Meet AGI asks before posting to the meeting." },
+  { value: "auto_post", label: "Auto-post", blurb: "Meet AGI posts to the meeting chat on its own." },
 ];
 
 export default function SettingsPage() {
@@ -16,6 +16,7 @@ export default function SettingsPage() {
   const [documents, setDocuments] = useState<Document[] | null>(null);
   const [integrations, setIntegrations] = useState<Integration[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [savingSecure, setSavingSecure] = useState(false);
 
   const load = useCallback(async () => {
     const [p, d, i, s] = await Promise.all([
@@ -40,7 +41,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl px-8 py-9">
       <h1 className="text-[22px] font-semibold tracking-tight">Settings</h1>
       <p className="mt-1 mb-7 text-[13px]" style={{ color: "var(--text-muted)" }}>
-        What Kindred knows, and how far it is allowed to go.
+        What Meet AGI knows, and how far it is allowed to go.
       </p>
 
       <Section
@@ -82,7 +83,37 @@ export default function SettingsPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+          <Toggle
+            label="Secure meeting"
+            blurb={
+              settings.secure_meeting
+                ? "On — reasoning runs on Tenstorrent hardware. This meeting's words do not reach Gemini."
+                : "Off — reasoning runs on Gemini. Turn on to keep the transcript off a third-party frontier API and route it to Tenstorrent instead."
+            }
+            checked={settings.secure_meeting}
+            disabled={savingSecure}
+            onChange={async (next) => {
+              // Optimistic, then reconciled with the server's copy. The switch is the
+              // one control here whose state is a claim about where the transcript
+              // goes, so it must never sit on a value the backend did not confirm — a
+              // failed PATCH rolls it back rather than leaving it looking secure.
+              const previous = settings;
+              setSavingSecure(true);
+              setSettings({ ...settings, secure_meeting: next });
+              try {
+                setSettings(await api.settings.update({ secure_meeting: next }));
+              } catch {
+                setSettings(previous);
+              } finally {
+                setSavingSecure(false);
+              }
+            }}
+          />
+
+          <div
+            className="mt-4 grid grid-cols-2 gap-4 border-t pt-4"
+            style={{ borderColor: "var(--border)" }}
+          >
             <Field label="Wake phrase" value={settings.wake_word} />
             <Field label="Also answers to" value={(settings.wake_aliases ?? []).join(", ") || "—"} />
             <Field label="Cooldown" value={`${settings.interjection.cooldown_seconds}s between interjections`} />
@@ -93,7 +124,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="People" blurb="How Kindred knows who is talking, and why they would say it.">
+      <Section title="People" blurb="How Meet AGI knows who is talking, and why they would say it.">
         {people === null ? (
           <Spinner />
         ) : people.length === 0 ? (
@@ -120,7 +151,7 @@ export default function SettingsPage() {
         )}
       </Section>
 
-      <Section title="Documents" blurb="The corpus Kindred checks claims against.">
+      <Section title="Documents" blurb="The corpus Meet AGI checks claims against.">
         {documents === null ? (
           <Spinner />
         ) : documents.length === 0 ? (
@@ -217,6 +248,59 @@ function Section({
       </div>
       <Panel className="overflow-hidden">{children}</Panel>
     </section>
+  );
+}
+
+/** A labelled switch. A real checkbox underneath, so it is keyboard- and
+ *  screen-reader-operable; the visible pill is drawn from its checked state. */
+function Toggle({
+  label,
+  blurb,
+  checked,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  blurb: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label
+      className="flex cursor-pointer items-start gap-3 rounded-md border p-2.5 transition-colors"
+      style={{
+        borderColor: checked ? "var(--color-speak-500)" : "var(--border)",
+        background: checked
+          ? "color-mix(in srgb, var(--color-speak-500) 7%, transparent)"
+          : "transparent",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      <input
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span
+        aria-hidden
+        className="mt-0.5 flex h-[18px] w-[32px] shrink-0 items-center rounded-full p-[2px] transition-colors"
+        style={{
+          background: checked ? "var(--color-speak-500)" : "var(--border)",
+          justifyContent: checked ? "flex-end" : "flex-start",
+        }}
+      >
+        <span className="block h-[14px] w-[14px] rounded-full" style={{ background: "#fff" }} />
+      </span>
+      <div>
+        <div className="text-[13px] font-medium">{label}</div>
+        <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+          {blurb}
+        </div>
+      </div>
+    </label>
   );
 }
 

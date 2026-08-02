@@ -5,8 +5,8 @@ import { HealthBadge } from "@/components/HealthBadge";
 import { NavLink } from "@/components/NavLink";
 
 export const metadata: Metadata = {
-  title: "Kindred",
-  description: "Review what Kindred said in your meetings, and what it read before saying it.",
+  title: "Meet AGI",
+  description: "Review what Meet AGI said in your meetings, and what it read before saying it.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             style={{ borderColor: "var(--border)", background: "var(--bg-raised)" }}
           >
             <Link href="/" className="mb-7 flex items-baseline gap-2 px-2">
-              <span className="text-[15px] font-semibold tracking-tight">Kindred</span>
+              <span className="text-[15px] font-semibold tracking-tight">Meet AGI</span>
               <span className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-faint)" }}>
                 meet_AGI
               </span>

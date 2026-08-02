@@ -1,4 +1,4 @@
-"""Kindred's video output: the status card rendered onto the bot's camera tile."""
+"""Meet AGI's video output: the status card rendered onto the bot's camera tile."""
 
 from .card import CardState, VideoCard, attach_to_bus, card, render
 

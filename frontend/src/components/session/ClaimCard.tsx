@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Markdown } from "@/components/Markdown";
 import type { Interjection, InterjectionKind } from "@/lib/api/types";
 
-/** A contradiction is Kindred disagreeing with a person; an answer is Kindred being
+/** A contradiction is Meet AGI disagreeing with a person; an answer is Meet AGI being
  *  asked. They should not look the same. Colour is noticeable but never alarming —
  *  an aggressive treatment makes a false positive read as an accusation. */
 const KIND_STYLE: Record<string, { label: string; color: string }> = {
@@ -65,7 +65,7 @@ export function ClaimCard({
               background: "color-mix(in srgb, var(--color-speak-500) 15%, transparent)",
               color: "var(--color-speak-500)",
             }}
-            title="Kindred said this out loud in the meeting"
+            title="Meet AGI said this out loud in the meeting"
           >
             spoken
           </span>
@@ -91,7 +91,7 @@ export function ClaimCard({
           // An unsupported assertion is exactly what an auditor is looking for, so it
           // gets a visible line rather than an empty section.
           <p className="text-[11.5px]" style={{ color: "var(--color-flag-500)" }}>
-            No sources cited — Kindred asserted this without supporting evidence.
+            No sources cited — Meet AGI asserted this without supporting evidence.
           </p>
         ) : (
           <>

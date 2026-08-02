@@ -24,7 +24,7 @@ def get_sample_clips() -> SampleVoiceProvider:
 
 # Named in the Settings contract but not implemented yet. Selecting one of these falls
 # back to sample clips with a warning rather than failing: a missing voice provider
-# should degrade Kindred's voice, not stop it from joining the meeting.
+# should degrade Meet AGI's voice, not stop it from joining the meeting.
 _PLANNED = {"elevenlabs", "system"}
 
 

@@ -213,7 +213,7 @@ export default function SessionPage() {
 
       {tab === "claims" ? (
         interjections.length === 0 ? (
-          <Empty title="Kindred did not speak up in this session." />
+          <Empty title="Meet AGI did not speak up in this session." />
         ) : (
           <div className="flex flex-col gap-3">
             {interjections.map((claim) => (
@@ -269,7 +269,7 @@ export default function SessionPage() {
 }
 
 /** Stage insurance. Visible controls, not a debug panel — if wake-word detection
- *  misfires during a demo, this is how Kindred gets driven from the dashboard. */
+ *  misfires during a demo, this is how Meet AGI gets driven from the dashboard. */
 function LiveControls({
   meetingId,
   muted,
@@ -324,7 +324,7 @@ function LiveControls({
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && ask()}
-        placeholder="Ask Kindred out loud…"
+        placeholder="Ask Meet AGI out loud…"
         className="min-w-40 flex-1 rounded-md border px-2.5 py-1.5 text-[12px] outline-none focus:border-[var(--color-accent-500)]"
         style={{ borderColor: "var(--border)", background: "var(--bg)", color: "var(--text)" }}
       />

@@ -1,4 +1,4 @@
-"""Speech output contract — what Kindred said out loud, and how to ask it to speak.
+"""Speech output contract — what Meet AGI said out loud, and how to ask it to speak.
 
 An `Utterance` is one clip of audio played into a meeting. It is deliberately separate
 from `Interjection`: an interjection is a *conclusion* (with citations, confidence, a
@@ -6,7 +6,7 @@ chat alert), while an utterance is the *audio event* that carried it. One interj
 that is both posted to chat and spoken produces one interjection and one utterance.
 
 The frontend uses the utterance stream to show what the meeting actually heard, which is
-not always what Kindred meant to say while the voice provider is a stand-in — hence
+not always what Meet AGI meant to say while the voice provider is a stand-in — hence
 `placeholder`.
 """
 
@@ -21,12 +21,12 @@ from .common import Schema, Ts
 
 class UtteranceStatus(str, Enum):
     QUEUED = "queued"
-    """Waiting its turn. Kindred plays one clip at a time, in order."""
+    """Waiting its turn. Meet AGI plays one clip at a time, in order."""
     SPEAKING = "speaking"
     """Handed to the meeting; audio is playing right now."""
     PLAYED = "played"
     DROPPED = "dropped"
-    """Deliberately not played — Kindred was muted, or the bot never became available."""
+    """Deliberately not played — Meet AGI was muted, or the bot never became available."""
     FAILED = "failed"
     """Synthesis or playback errored. `error` says which."""
 
@@ -41,7 +41,7 @@ class Utterance(Schema):
     requested_text: str | None = Field(
         default=None,
         description=(
-            "What the caller asked Kindred to say, when that differs from `text`. "
+            "What the caller asked Meet AGI to say, when that differs from `text`. "
             "Non-null only while the voice provider is a placeholder."
         ),
     )
@@ -65,7 +65,7 @@ class Utterance(Schema):
 
 
 class SpeakRequest(Schema):
-    """Ask Kindred to say something out loud in a meeting.
+    """Ask Meet AGI to say something out loud in a meeting.
 
     Exactly one of `text` or `clip_id`. `text` goes through the voice provider;
     `clip_id` plays a known sample clip verbatim, which is what the demo path uses and

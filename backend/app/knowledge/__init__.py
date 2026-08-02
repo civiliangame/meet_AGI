@@ -1,4 +1,4 @@
-"""The document corpus Kindred reasons over.
+"""The document corpus Meet AGI reasons over.
 
 Plain `.txt` files in `knowledge/`, chunked on `##` headings, retrieved by a keyword
 prefilter and handed to Claude. No embeddings, no vector store, no Postgres.

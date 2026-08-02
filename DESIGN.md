@@ -2,20 +2,20 @@
 
 **A Google Meet copilot that actually speaks.**
 
-The agent is called **Kindred**. The wake phrase is **"Hey AGI"** (with `Kindred` kept as
+The agent is called **Meet AGI**. The wake phrase is **"Hey AGI"** (with `Meet AGI` kept as
 an alias).
 
 > **Status: this document describes what is built.** Anything not yet implemented is
 > marked ⬜ and says so plainly. Last reconciled against the code at commit `b469122`.
 >
-> **The one thing that is not built is the one that matters most: Kindred cannot hear a
+> **The one thing that is not built is the one that matters most: Meet AGI cannot hear a
 > real meeting yet.** See §2.1.
 
 ---
 
 ## 1. What it is
 
-Kindred joins a Google Meet as a participant, hears every speaker on a separate audio
+Meet AGI joins a Google Meet as a participant, hears every speaker on a separate audio
 track, knows who each person is, and stays quiet.
 
 Two loops, one entry point (`pipeline.handle_final_segment`, called once per finalized
@@ -26,7 +26,7 @@ claim, retrieve against the document corpus, ask Claude whether the evidence con
 rate-limit, and if it survives all of that, type a one-line flag into the meeting chat
 with the full reasoning in the dashboard.
 
-**Speech mode (on demand).** Say "Hey AGI" and Kindred wakes, captures the question,
+**Speech mode (on demand).** Say "Hey AGI" and Meet AGI wakes, captures the question,
 answers it out loud through Inworld TTS, and types a summary into chat.
 
 The difference from every other notetaker: it participates.
@@ -51,7 +51,7 @@ transcription +$0.15/hr. The whole hackathon including heavy iteration lands und
 
 ### 2.1 The critical gap
 
-**Kindred can join a meeting, speak into it, and type into its chat. It cannot hear it.**
+**Meet AGI can join a meeting, speak into it, and type into its chat. It cannot hear it.**
 
 `RecallClient` implements bot lifecycle, audio output, and chat. It does not open the
 websocket that carries `audio_separate_raw.data` or `transcript.data`, so
@@ -70,11 +70,11 @@ single remaining step to a live demo, and it is the top of the build order in §
    200 characters and occasionally produces 520 would silently drop that interjection, in
    the meeting, on stage. Truncation is on a word boundary.
 2. **Recall requires `automatic_audio_output` at bot creation** or the on-demand audio
-   endpoint is disabled for that bot's entire life. Every bot Kindred dispatches gets a
+   endpoint is disabled for that bot's entire life. Every bot Meet AGI dispatches gets a
    silent clip in that slot to keep the path open.
 3. **Recall API keys are region-scoped.** A key from another region returns 401 on every
    call, which reads exactly like a bad key. `RECALL_REGION` defaults to `us-west-2`.
-4. **Real-time separate-audio excludes screenshare audio.** Live, Kindred is deaf to a
+4. **Real-time separate-audio excludes screenshare audio.** Live, Meet AGI is deaf to a
    shared video. It is in the post-call recording only. Don't demo a screenshared clip.
 5. **Separate audio is compute-heavy — Recall recommends 4-core bots.** One config flag,
    and streams drop silently without it.
@@ -161,28 +161,48 @@ fixture transcript; without it, it falls back to canned output with the same eve
 Runs on every finalized utterance that is not a wake.
 
 1. **Remember** — the utterance joins the meeting's conversation context.
-2. **Triage** — is there a checkable factual assertion here? The heuristic runs first and
-   unconditionally because it is free: utterances under 8 words are out, pure
-   back-channel ("yeah", "sounds good") is out. Only survivors reach a model, and only
-   the cheap one. *The ordering is the whole optimization — you should not pay
-   frontier-model prices to decide whether "yeah, sounds good" needs fact-checking.*
+2. **Triage** — two gates, and either one is enough to earn a reasoning call.
+   - *The claim gate* asks "is there a checkable factual assertion here": utterances
+     under 8 words are out, pure back-channel ("yeah", "sounds good") is out. Free, and
+     it removes most of the traffic. *The ordering is the whole optimization — you should
+     not pay frontier-model prices to decide whether "yeah, sounds good" needs
+     fact-checking.*
+   - *The conflict gate* asks something different: is this somebody pushing back? The
+     claim gate is the right question for a document conflict and the wrong one for a
+     live argument, because pushback is short, hedged, pronoun-heavy and often phrased
+     as a question — every one of the claim gate's drop rules. Measured against a real
+     meeting log, ten of twelve disagreement utterances died at the claim gate, which
+     meant the second half of every argument was invisible and a contradiction spanning
+     two turns could not be found. The conflict gate costs two extra model calls per 322
+     utterances.
+
+   Conflict-shaped speech also skips the cheap classifier entirely. That classifier is
+   prompted to find factual assertions, so asked whether "no, that's not what the deck
+   says" is checkable it answers no — correct by its own lights, fatal for the feature.
 3. **Retrieve** — keyword prefilter over the corpus. Deliberately not semantic search:
    it exists to keep the prompt small, not to be the final word on relevance. Claude reads
    what survives and decides what matters. Recall beats precision here — a chunk wrongly
-   included costs a few hundred tokens; a chunk wrongly excluded is a fact Kindred cannot
+   included costs a few hundred tokens; a chunk wrongly excluded is a fact Meet AGI cannot
    see.
-4. **Reason** — Claude returns a structured verdict, and the only verdict that interjects
-   is **contradiction**: two specific statements that cannot both be true, each quoted
-   verbatim, one from the transcript or the corpus and one from the utterance under
-   review. There is no `context` verdict and no `correction` verdict any more. A model
-   that flags a conflict but cannot produce both statements has reasoned its way to a
-   conclusion rather than read one off the page, and the verdict is dropped in
-   `Verdict.is_flag` before it ever reaches the gate. Everything else — useful nuance,
-   a related figure, a qualification worth hearing — stays quiet. The bar for
-   interrupting people is a contradiction or nothing.
+4. **Reason** — the model returns a structured verdict, and the only verdict that
+   interjects is **contradiction**: two specific statements that cannot both be true,
+   each quoted verbatim. Three ways that happens, all equal:
+   - the claim contradicts a sentence in the retrieved documents;
+   - the claim contradicts something said earlier in this meeting;
+   - **two people are arguing right now.** One asserts, another pushes back. This is the
+     highest-value moment to speak into, because the corpus can usually settle it and
+     the room is already listening. If the documents do not settle it, it still flags —
+     naming the disagreement and saying so is the useful thing.
+
+   There is no `context` verdict and no `correction` verdict. The discipline is
+   structural rather than tonal: a model that flags a conflict but cannot produce both
+   statements has reasoned its way to a conclusion instead of reading one off the page,
+   and `Verdict.is_flag` drops it before it reaches the gate. That hard requirement is
+   what lets the prompt be permissive about *what* counts — the earlier version leaned
+   on "a false flag costs far more than a missed one" and simply never fired.
 5. **Gate** — drop it unless confidence clears `min_confidence`, the cooldown has
    elapsed, and the per-meeting cap is not hit. **Answers to direct questions bypass the
-   gate** — if someone asks, Kindred replies. Only unprompted interjections are rationed.
+   gate** — if someone asks, Meet AGI replies. Only unprompted interjections are rationed.
 6. **Emit** — one interjection, two artifacts:
    - `chat_alert` → the meeting. A flag, not an argument. Hard-capped at 500 chars.
    - `headline` + `body_md` + `citations` → the dashboard over WebSocket.
@@ -193,9 +213,16 @@ pipeline raises into its caller: a meeting that keeps running with a degraded co
 beats one where a reasoning exception stops the transcript.
 
 **The rate limiter is a feature.** A copilot that will not shut up is worse than no
-copilot. Defaults: `min_confidence 0.7`, `cooldown 90s`, `max 8 per meeting`, all live-
+copilot. Defaults: `min_confidence 0.6`, `cooldown 20s`, `max 30 per meeting`, all live-
 tunable from the settings UI — the right cooldown for a four-person review is not the
 right cooldown for a standup, and you find that out during the meeting.
+
+Those defaults were `0.7 / 90s / 8` when the loop could also volunteer context, where
+the failure mode is chatter. Now that it only fires on contradictions the calculus
+inverts: a contradiction is rare and always worth hearing, and two of them thirty
+seconds apart are two separate things the room got wrong. A 90-second cooldown
+swallowing the second one is the bug, not the rate limit working. Suppression is logged
+at `WARNING` for exactly that reason.
 
 **Autonomy levels** (`settings.autonomy`, default `auto_post`):
 
@@ -235,7 +262,7 @@ wake. The guard is positional: the phrase must start the utterance or follow a c
 boundary — which is where someone addressing the agent mid-sentence ("hold on, hey AGI,
 what does the deck say") actually puts it. Distinctiveness belongs to the *configured*
 phrase, not the variant: "Hey AGI" is two words and nothing anybody says by accident,
-`Kindred` is one ordinary English word, and the mangled spelling `kin dread` inherits the
+`Meet AGI` is one ordinary English word, and the mangled spelling `kin dread` inherits the
 latter's caution however STT chose to tokenize it.
 
 **A wake word only reaches this code if the utterance ever ends.** With an open
@@ -252,11 +279,11 @@ and all three should be visible controls, not debug tools.
 
 The kill phrase, and the one signal deliberately matched on **partial** transcript. The
 rule is a name plus a stop verb within a few tokens, in either order — `AGI stop
-talking`, `Hey AGI, stop`, `stop talking, AGI`, `Kindred, that's enough`. Requiring the
+talking`, `Hey AGI, stop`, `stop talking, AGI`, `Meet AGI, that's enough`. Requiring the
 name is what keeps "okay everyone, stop talking over each other" from muting the agent.
 
 Waiting for the finalized utterance here would be exactly wrong. Everything the phrase
-does is an abort, so a false positive costs silence and a false negative means Kindred
+does is an abort, so a false positive costs silence and a false negative means Meet AGI
 talks over the person telling it to shut up.
 
 It aborts three things, in this order:
@@ -264,7 +291,7 @@ It aborts three things, in this order:
 1. **Reasoning in flight** is cancelled, so a half-generated answer cannot land thirty
    seconds later in a room that asked for silence.
 2. **The pending-question window** is dropped, so the next thing anybody says is not
-   mistaken for the question Kindred was still waiting on.
+   mistaken for the question Meet AGI was still waiting on.
 3. **Audio** — the queue is discarded *and* the clip already playing is retracted through
    Recall's `DELETE /bot/{id}/output_audio/`. Without that last step the interruption is
    only a promise to stop at the end of the sentence.
@@ -276,7 +303,7 @@ debounce that exists to absorb the phrase arriving repeatedly as partials revise
 
 Retrieve → Claude → Inworld TTS → mp3 → Recall. The answer is persisted as an
 `Interjection` with `kind: "answer"` and an `Utterance` recording the audio event, so the
-dashboard timeline shows everything Kindred said and why.
+dashboard timeline shows everything Meet AGI said and why.
 
 ⬜ **Clarifying questions are not built.** The design holds — at most one round, because
 a bot that interrogates you is a bad demo — but it is not implemented.
@@ -288,7 +315,7 @@ a bot that interrogates you is a bad demo — but it is not implemented.
 All three sit behind provider seams. Only one is required to qualify.
 
 ### Inworld — voice. ✅ Built and load-bearing.
-`providers/voice/inworld.py`. Kindred's actual speaking voice. `VOICE_PROVIDER=auto`
+`providers/voice/inworld.py`. Meet AGI's actual speaking voice. `VOICE_PROVIDER=auto`
 uses Inworld when `INWORLD_API_KEY` is set and falls back to pre-baked sample clips
 otherwise, so the audio path works with no key at all.
 
@@ -297,6 +324,22 @@ otherwise, so the audio path works with no key at all.
 OpenAI-compatible endpoint at `console.tenstorrent.com/v1`, behind the same
 `complete_json` contract as Gemini and Claude. Flip `LLM_PROVIDER=tenstorrent` and every
 reasoning call in both loops — triage, ambient, speech — goes to Tenstorrent instead.
+
+The **secure meeting** setting is the runtime form of that flag: a toggle in Settings →
+Agent that overrides the configured provider per meeting, no restart. It exists because
+the interesting property of this hardware is not only throughput — it is that the
+transcript never reaches a third-party frontier API. That turns "which backend is
+cheaper" into a question an operator can answer per meeting, which is why the switch
+lives in the product rather than in `.env`.
+
+Two consequences worth stating, both enforced in `providers/llm/__init__.py`:
+
+- **It fails closed.** No `TENSTORRENT_API_KEY` means canned output, never a silent
+  fallback to Gemini. A switch whose purpose is keeping data off a provider must not
+  route data to that provider when it is misconfigured.
+- **Triage rides along.** `pipeline/triage.py` sees the raw utterance before anything
+  else does, so leaving it on the cloud model while ambient and speech moved would leak
+  every sentence in the meeting to precisely the API the toggle excludes.
 
 It landed as a whole-pipeline provider rather than the triage-only seam originally
 planned. `pipeline/triage.py` is still the best *argument* for the hardware — highest-QPS
@@ -446,7 +489,7 @@ presenting it as real speech.
 **`TranscriptSegment`** — partials and their final share an `id`, so a final replaces the
 partial it supersedes.
 
-**`Settings`** — `wake_word` (default `"Hey AGI"`), `wake_aliases` (default `["Kindred"]`),
+**`Settings`** — `wake_word` (default `"Hey AGI"`), `wake_aliases` (default `["Meet AGI"]`),
 `wake_word_enabled`, `autonomy`, `interjection` policy, `voice`, `persona`, `triage`.
 
 ### 8.3 WebSocket
@@ -553,7 +596,7 @@ judgement anyway.
 | — | Config UI, live meeting view | 🟡 frontend owner |
 
 **5b is the critical path.** Everything downstream of it is built and tested against the
-harness. Until it lands, Kindred is deaf in a real meeting and the demo has to be driven
+harness. Until it lands, Meet AGI is deaf in a real meeting and the demo has to be driven
 by `POST /ask` and the manual wake button.
 
 **Cut list, in order:** clarifying questions → Character.AI persona → Tenstorrent triage →
@@ -565,11 +608,11 @@ sentence streaming. Do not cut 5b or 7.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| **5b doesn't land** — Kindred can't hear the live meeting | **High** | `/ask` + manual wake drive the demo entirely from the dashboard; harness gives a full offline path |
+| **5b doesn't land** — Meet AGI can't hear the live meeting | **High** | `/ask` + manual wake drive the demo entirely from the dashboard; harness gives a full offline path |
 | Wake false-positive on stage — someone says "Hey AGI" while explaining it | **High** | Finalized-transcript-only matching, positional guard, homophone variants, mute switch, manual wake |
 | Transcript ingestion needs a public `wss://` | Medium | ngrok early; audio output deliberately does not depend on it |
 | Speech latency feels dead | Medium | Sentence streaming (#8); measure first-audio explicitly |
-| Kindred interjects too much | Medium | Gate: confidence + cooldown + cap, tunable live |
+| Meet AGI interjects too much | Medium | Gate: confidence + cooldown + cap, tunable live |
 | No persistence — a restart loses the meeting | Medium | Accepted for the hackathon. Do not restart the backend mid-demo. |
 | Conference wifi | Medium | Fixture harness is a fully offline demo path |
 | 500-char alerts feel thin | Low | By design: chat alerts, dashboard argues |
@@ -586,7 +629,7 @@ sentence streaming. Do not cut 5b or 7.
 2. **Consent disclosure** — Recall can pin a chat message on join, and `--announce
    greeting` can speak one. Recommend turning one on by default; it preempts the obvious
    judge question about recording people.
-3. **Cross-meeting memory** — `pipeline/context.py` is per-meeting. "Kindred remembers
+3. **Cross-meeting memory** — `pipeline/context.py` is per-meeting. "Meet AGI remembers
    what you said three meetings ago" is a strong demo beat and a schema addition. Decide
    before the frontend hardens.
 4. **Persistence** — worth it before demo day, or is in-memory acceptable given a restart

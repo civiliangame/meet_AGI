@@ -1,8 +1,8 @@
-"""Filler speech — what Kindred says while it is still thinking.
+"""Filler speech — what Meet AGI says while it is still thinking.
 
 Retrieval plus reasoning is one to three seconds. In a text UI that is nothing; in a
 room full of people who just asked a question out loud it is a dead pause, and the
-speaker starts wondering whether the thing heard them. So Kindred answers the *social*
+speaker starts wondering whether the thing heard them. So Meet AGI answers the *social*
 question immediately ("yes, I'm on it") and the factual one when it has an answer.
 
 **Rendered once, cached on disk.** These lines never change, so paying Inworld for them
@@ -90,7 +90,7 @@ class FillerBank:
         """Render and cache every line. Returns how many are available.
 
         Called at startup so the first wake of a meeting does not pay for synthesis.
-        Failures are logged and skipped — a missing filler must never stop Kindred from
+        Failures are logged and skipped — a missing filler must never stop Meet AGI from
         answering, and the caller falls back to a sample clip.
         """
         if not self.synthesizes:

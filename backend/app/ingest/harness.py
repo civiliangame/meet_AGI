@@ -93,9 +93,9 @@ _CANNED: dict[str, dict[str, Any]] = {
         "kind": InterjectionKind.CONTRADICTION,
         "headline": "Marcus's new-product revenue claim conflicts with the Q3 board deck",
         "chat_alert": (
-            "⚠️ Kindred: the new-product revenue claim conflicts with the Q3 deck "
+            "⚠️ Meet AGI: the new-product revenue claim conflicts with the Q3 deck "
             "— p.14 shows that line at -12.1% MoM, not +8%. Looks like a gross vs. net "
-            "mismatch. Full analysis in the Kindred dashboard."
+            "mismatch. Full analysis in the Meet AGI dashboard."
         ),
         "body_md": (
             "**Claim.** Marcus said new-product revenue is *up about eight percent* "
@@ -135,7 +135,7 @@ _CANNED: dict[str, dict[str, Any]] = {
         "kind": InterjectionKind.ANSWER,
         "headline": "New product line is down 12.1% MoM per the Q3 deck",
         "chat_alert": (
-            "\U0001f5e3️ Kindred answered: the Q3 deck (p.14) puts the new product line "
+            "\U0001f5e3️ Meet AGI answered: the Q3 deck (p.14) puts the new product line "
             "at $1.42M, down 12.1% MoM. The +8% figure matches gross bookings, not net revenue."
         ),
         "body_md": (
@@ -163,7 +163,7 @@ _CANNED: dict[str, dict[str, Any]] = {
         "kind": InterjectionKind.ANSWER,
         "headline": "Last quarter you deferred the mid-market repricing to Q4",
         "chat_alert": (
-            "\U0001f5e3️ Kindred answered: last quarter the mid-market repricing was "
+            "\U0001f5e3️ Meet AGI answered: last quarter the mid-market repricing was "
             "deferred to Q4 pending a churn read — the read is now in and churn is up "
             "to 4.1%."
         ),
@@ -255,7 +255,7 @@ class HarnessRun:
         """Whether finalized utterances go to the real reasoning pipeline.
 
         When they do, the fixture's `triggers_interjection` and `answer_ref` hints are
-        ignored: Kindred has to *find* the planted contradiction in the documents rather
+        ignored: Meet AGI has to *find* the planted contradiction in the documents rather
         than being handed it, which is the only version of this demo worth showing. With
         no `ANTHROPIC_API_KEY` the canned timeline runs instead, so the frontend and the
         stage demo still work with an empty `.env`.

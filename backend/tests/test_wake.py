@@ -14,12 +14,25 @@ from app.pipeline.wake import StopDetector, WakeDetector, normalize
 
 @pytest.fixture
 def detector() -> WakeDetector:
-    return WakeDetector("Hey AGI", ["Kindred"])
+    """The shipped configuration: `Settings.wake_word` plus `Settings.wake_aliases`."""
+    return WakeDetector("Hey AGI", ["Meet AGI"])
 
 
 @pytest.fixture
 def stopper() -> StopDetector:
-    return StopDetector("Hey AGI", ["Kindred"])
+    return StopDetector("Hey AGI", ["Meet AGI"])
+
+
+@pytest.fixture
+def one_word_alias_detector() -> WakeDetector:
+    """A one-word alias that is also an ordinary English word.
+
+    Not the shipped config — both current phrases are two words — but the caution the
+    detector applies to a phrase like this is real code, and an operator can still
+    configure one. `Kindred` was the agent's own name until it was renamed to Meet AGI,
+    which makes it the case this rule was written against.
+    """
+    return WakeDetector("Hey AGI", ["Kindred"])
 
 
 class TestMatches:
@@ -41,9 +54,28 @@ class TestMatches:
     def test_wakes(self, detector: WakeDetector, utterance: str) -> None:
         assert detector.match(utterance) is not None, utterance
 
-    def test_alias_still_wakes(self, detector: WakeDetector) -> None:
-        """The fixture and the docs both use `Kindred`; it must keep working."""
-        match = detector.match("Kindred, what does the Q3 deck actually say?")
+    def test_alias_wakes(self, detector: WakeDetector) -> None:
+        """The agent answers to its own name, not only to the wake word.
+
+        The fixture's two wake events are phrased this way, so the harness demo depends
+        on it: `q3_revenue_review.jsonl` never says "Hey AGI".
+        """
+        match = detector.match("Meet AGI, what does the Q3 deck actually say?")
+        assert match is not None
+        assert "what does the q3 deck actually say" in match.question
+
+    def test_alias_wakes_mid_utterance(self, detector: WakeDetector) -> None:
+        """Two words, so it is distinctive — and the fixture turns to it mid-sentence."""
+        match = detector.match(
+            "Hold on. Meet AGI, what does the Q3 deck actually say about the new product line?"
+        )
+        assert match is not None
+        assert match.question.startswith("what does the q3 deck actually say")
+
+    def test_one_word_alias_wakes_when_addressed(
+        self, one_word_alias_detector: WakeDetector
+    ) -> None:
+        match = one_word_alias_detector.match("Kindred, what does the Q3 deck actually say?")
         assert match is not None
         assert "what does the q3 deck actually say" in match.question
 
@@ -66,12 +98,26 @@ class TestFalsePositives:
             # Someone discussing the product on stage — the demo-day nightmare.
             "we should call it hey agi",
             "the hey agi integration is what we are demoing",
-            "I was talking to Kindred about this yesterday",
-            "kindred spirits, the two of them",
+            # The same, for the alias. Talking *about* the agent is not addressing it.
+            "we should call it meet agi",
+            "I was talking to meet agi about this yesterday",
         ],
     )
     def test_does_not_wake(self, detector: WakeDetector, utterance: str) -> None:
         assert detector.match(utterance) is None, utterance
+
+    @pytest.mark.parametrize(
+        "utterance",
+        [
+            "I was talking to Kindred about this yesterday",
+            "kindred spirits, the two of them",
+        ],
+    )
+    def test_one_word_alias_does_not_wake_on_mention(
+        self, one_word_alias_detector: WakeDetector, utterance: str
+    ) -> None:
+        """A one-word alias gets no credit for position alone — it needs a question."""
+        assert one_word_alias_detector.match(utterance) is None, utterance
 
     def test_unrelated_speech(self, detector: WakeDetector) -> None:
         assert detector.match("New product revenue is up about eight percent") is None
@@ -164,7 +210,7 @@ class TestStopPhrase:
             "Hey Aji, shut up",
             "okay AGI be quiet",
             "stop talking, AGI",
-            "Kindred, that's enough",
+            "Meet AGI, that's enough",
             "AGI never mind",
         ],
     )

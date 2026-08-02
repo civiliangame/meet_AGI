@@ -194,7 +194,7 @@ export const api = {
     // --- Post-meeting review ---
     /** Meeting + transcript + interjections + sources in one call. Use for review pages. */
     bundle: (id: string) => request<MeetingBundle>(`/api/meetings/${id}/bundle`),
-    /** Documents Kindred actually cited, most-used first. The audit surface. */
+    /** Documents Meet AGI actually cited, most-used first. The audit surface. */
     sources: (id: string) =>
       request<Page<CitedDocument>>(`/api/meetings/${id}/sources`),
     /** Substring search over the finalized transcript, optionally scoped to a speaker. */
@@ -210,10 +210,10 @@ export const api = {
     /** Force `listening` without the wake word. */
     wake: (id: string) =>
       request<Meeting>(`/api/meetings/${id}/wake`, { method: "POST" }),
-    /** Hard override. While muted Kindred will not post or speak. */
+    /** Hard override. While muted Meet AGI will not post or speak. */
     mute: (id: string, muted: boolean) =>
       request<Meeting>(`/api/meetings/${id}/mute`, { method: "POST", body: { muted } }),
-    /** Type a question. With `speak`, Kindred also says the answer into the meeting. */
+    /** Type a question. With `speak`, Meet AGI also says the answer into the meeting. */
     ask: (id: string, question: string, speak = false) =>
       request<Interjection>(`/api/meetings/${id}/ask`, {
         method: "POST",

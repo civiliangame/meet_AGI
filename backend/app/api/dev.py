@@ -187,7 +187,7 @@ _LIVE_BOT_STATUSES = [
         "A bot is a Recall-side entity: killing the backend that dispatched it does not "
         "remove it from the meeting, it just orphans it there until Recall's "
         "`everyone_left_timeout` expires. After a hard restart that leaves a silent, "
-        "deaf Kindred sitting in the call next to the new one.\n\n"
+        "deaf Meet AGI sitting in the call next to the new one.\n\n"
         "`keep` spares a bot — normally the one the caller just dispatched."
     ),
 )

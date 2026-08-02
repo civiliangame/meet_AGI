@@ -7,7 +7,7 @@ import type { Health } from "@/lib/api/types";
 /**
  * What is actually wired up.
  *
- * Worth a permanent corner of the UI: "is Kindred reasoning for real or replaying
+ * Worth a permanent corner of the UI: "is Meet AGI reasoning for real or replaying
  * fixtures" is the first question to ask when something looks wrong, and reading it
  * off the screen beats guessing.
  */

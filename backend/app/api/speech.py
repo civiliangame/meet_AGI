@@ -1,4 +1,4 @@
-"""Speech output — making Kindred say something out loud.
+"""Speech output — making Meet AGI say something out loud.
 
 Every one of these endpoints queues audio through `SpeechOutput`, which plays one clip
 at a time per meeting and honours mute at the moment of playback. Nothing here talks to
@@ -6,7 +6,7 @@ Recall directly.
 
 `POST /speak/random` exists to prove the audio path end to end without any reasoning in
 the way: dispatch a bot, admit it, hit this, hear it. When something has gone wrong on
-stage, it is also the fastest way to find out whether the problem is Recall or Kindred.
+stage, it is also the fastest way to find out whether the problem is Recall or Meet AGI.
 """
 
 from __future__ import annotations
@@ -46,14 +46,14 @@ def _require_speakable(meeting_id: str, runtime: Runtime) -> Meeting:
             {"meeting_id": meeting_id, "source": meeting.source, "state": meeting.state},
         )
     if meeting.agent_state == AgentState.MUTED:
-        raise conflict("Kindred is muted. Unmute before speaking.", {"meeting_id": meeting_id})
+        raise conflict("Meet AGI is muted. Unmute before speaking.", {"meeting_id": meeting_id})
     return meeting
 
 
 @router.get(
     "/speech/clips",
     response_model=ClipList,
-    summary="List the sample clips Kindred can play",
+    summary="List the sample clips Meet AGI can play",
     description=(
         "The stand-in voice while TTS is not wired up. These ids are what `clip_id` "
         "accepts on `/speak`, and the source of the audio `/speak/random` plays."
@@ -134,7 +134,7 @@ async def speak_random(
 @router.get(
     "/meetings/{meeting_id}/utterances",
     response_model=list[Utterance],
-    summary="What Kindred has said in this meeting",
+    summary="What Meet AGI has said in this meeting",
     description=(
         "Oldest first. Records are live — an utterance moves through `queued → speaking "
         "→ played` in place, so polling this shows progress."
@@ -149,7 +149,7 @@ def list_utterances(meeting_id: str, runtime: Runtime = Depends(get_runtime)) ->
 @router.post(
     "/meetings/{meeting_id}/interrupt",
     response_model=list[Utterance],
-    summary="Cut Kindred off mid-sentence",
+    summary="Cut Meet AGI off mid-sentence",
     description=(
         "The dashboard's equivalent of saying **\"AGI, stop talking\"** out loud. Drops "
         "the speech queue, cancels the reasoning that was about to produce more speech, "

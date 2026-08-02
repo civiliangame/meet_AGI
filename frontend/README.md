@@ -1,4 +1,4 @@
-# Kindred frontend
+# Meet AGI frontend
 
 **Start here.** This directory is the frontend's contract layer, not a scaffolded app.
 The app framework choice is yours — scaffold Next.js (or anything else) around what's
@@ -61,7 +61,7 @@ review deliberately built to exercise every UI state:
 | 4 participants join, one is a dial-in guest | Roster, and the **unmatched participant** flag |
 | ~22 utterances with partials before each final | The **live line** that solidifies on final |
 | Marcus overstates new-product revenue | An `interjection.proposed` of kind `contradiction`, with real citations |
-| Priya says "Kindred, ..." twice | Full speech mode: `wake_detected` → `listening` → `thinking` → `speaking` → `answered` |
+| Priya says "Meet AGI, ..." twice | Full speech mode: `wake_detected` → `listening` → `thinking` → `speaking` → `answered` |
 | Meeting ends | `meeting.state_changed` to `ended` |
 
 Reset between runs with `POST /api/dev/reset`.

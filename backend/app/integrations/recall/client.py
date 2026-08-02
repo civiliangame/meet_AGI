@@ -1,6 +1,6 @@
 """Thin async client for the Recall.ai v1 bot API.
 
-Only the surface Kindred needs: dispatch a bot, watch it join, push audio into the
+Only the surface Meet AGI needs: dispatch a bot, watch it join, push audio into the
 meeting, pull it back out. Everything else stays out until there is a caller for it.
 
 Two things about this API are easy to get wrong and are handled here:
@@ -84,7 +84,7 @@ class RecallClient:
     def _ensure_client(self) -> httpx.AsyncClient:
         if not self._api_key:
             raise RecallNotConfigured(
-                "RECALL_API_KEY is not set. Add it to .env — Kindred cannot dispatch a bot "
+                "RECALL_API_KEY is not set. Add it to .env — Meet AGI cannot dispatch a bot "
                 "without it. (The fixture harness runs without one.)"
             )
         if self._client is None:
@@ -223,7 +223,7 @@ class RecallClient:
                     }
                 },
                 # Per-speaker audio streams, so "who said this" is the platform's answer
-                # rather than a guess from voice similarity. Kindred attributes claims to
+                # rather than a guess from voice similarity. Meet AGI attributes claims to
                 # named people, so getting the speaker wrong is worse than not flagging.
                 "diarization": {"use_separate_streams_when_available": True},
             }
@@ -233,7 +233,7 @@ class RecallClient:
                     "url": webhook_url,
                     "events": [
                         "transcript.data",
-                        # Partials never wake Kindred — they revise as they arrive and a
+                        # Partials never wake Meet AGI — they revise as they arrive and a
                         # half-heard "hey a g..." is exactly the false wake DESIGN.md §12
                         # warns about. They are subscribed for the kill phrase, which is
                         # the one signal worth acting on before the sentence is finished,

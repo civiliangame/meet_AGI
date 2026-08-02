@@ -1,4 +1,4 @@
-{"kind":"meta","id":"q3_revenue_review","title":"Q3 Revenue Review","description":"Four-person quarterly review. Marcus overstates new-product revenue (planted contradiction against Q3-board-deck.pdf p.14), Priya wakes Kindred twice, and one dial-in participant stays unmatched.","duration_seconds":162}
+{"kind":"meta","id":"q3_revenue_review","title":"Q3 Revenue Review","description":"Four-person quarterly review. Marcus overstates new-product revenue (planted contradiction against Q3-board-deck.pdf p.14), Priya wakes Meet AGI twice, and one dial-in participant stays unmatched.","duration_seconds":162}
 {"at_ms":0,"kind":"participant_join","participant_id":"p_1","display_name":"Priya Raman","is_host":true}
 {"at_ms":800,"kind":"participant_join","participant_id":"p_2","display_name":"Sarah Chen","is_host":false}
 {"at_ms":1500,"kind":"participant_join","participant_id":"p_3","display_name":"Marcus Webb","is_host":false}
@@ -13,7 +13,7 @@
 {"at_ms":41000,"kind":"utterance","participant_id":"p_3","duration_ms":4300,"text":"Mostly mid-market. We closed a few larger accounts in July."}
 {"at_ms":50000,"kind":"utterance","participant_id":"p_2","duration_ms":5900,"text":"I want to flag that this depends on how you're counting. There's a gross versus net question here."}
 {"at_ms":57000,"kind":"utterance","participant_id":"p_3","duration_ms":2600,"text":"Right, but directionally it's up."}
-{"at_ms":61000,"kind":"wake","participant_id":"p_1","duration_ms":5200,"text":"Hold on. Kindred, what does the Q3 deck actually say about the new product line?","question":"What does the Q3 deck actually say about the new product line?","answer_ref":"new_product_line_answer"}
+{"at_ms":61000,"kind":"wake","participant_id":"p_1","duration_ms":5200,"text":"Hold on. Meet AGI, what does the Q3 deck actually say about the new product line?","question":"What does the Q3 deck actually say about the new product line?","answer_ref":"new_product_line_answer"}
 {"at_ms":75000,"kind":"utterance","participant_id":"p_1","duration_ms":4100,"text":"Okay. So it's down twelve percent, not up eight."}
 {"at_ms":80000,"kind":"utterance","participant_id":"p_3","duration_ms":4200,"text":"That must be the net number. I was quoting gross bookings."}
 {"at_ms":86000,"kind":"utterance","participant_id":"p_2","duration_ms":3600,"text":"Those are very different things in a board deck."}
@@ -23,7 +23,7 @@
 {"at_ms":106000,"kind":"utterance","participant_id":"p_2","duration_ms":6400,"text":"Churn is the one I'm watching. We're at four point one percent monthly, up from three point four."}
 {"at_ms":114000,"kind":"utterance","participant_id":"p_3","duration_ms":2400,"text":"Is that concentrated anywhere?"}
 {"at_ms":118000,"kind":"utterance","participant_id":"p_2","duration_ms":6200,"text":"Mid-market mostly. The churn analysis is still processing but the early read is pricing."}
-{"at_ms":126000,"kind":"wake","participant_id":"p_1","duration_ms":5000,"text":"Kindred, remind me what we said about mid-market pricing last quarter.","question":"What did we say about mid-market pricing last quarter?","answer_ref":"midmarket_pricing_answer"}
+{"at_ms":126000,"kind":"wake","participant_id":"p_1","duration_ms":5000,"text":"Meet AGI, remind me what we said about mid-market pricing last quarter.","question":"What did we say about mid-market pricing last quarter?","answer_ref":"midmarket_pricing_answer"}
 {"at_ms":138000,"kind":"utterance","participant_id":"p_1","duration_ms":3500,"text":"Right, that's what I thought. Let's revisit it."}
 {"at_ms":144000,"kind":"utterance","participant_id":"p_3","duration_ms":3400,"text":"I'll pull the pricing thread back open with the team."}
 {"at_ms":150000,"kind":"utterance","participant_id":"p_1","duration_ms":2800,"text":"Great. Anything else before we wrap?"}

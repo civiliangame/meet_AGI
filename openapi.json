@@ -152,7 +152,7 @@
         "type": "object"
       },
       "AskRequest": {
-        "description": "Type a question straight to Kindred from the dashboard.\n\nThis is the most valuable demo-recovery tool in the API. If wake-word detection\nmisfires on stage, type the question and Kindred still answers out loud.",
+        "description": "Type a question straight to Meet AGI from the dashboard.\n\nThis is the most valuable demo-recovery tool in the API. If wake-word detection\nmisfires on stage, type the question and Meet AGI still answers out loud.",
         "properties": {
           "question": {
             "maxLength": 2000,
@@ -286,7 +286,7 @@
         "type": "object"
       },
       "CitedDocument": {
-        "description": "A document Kindred actually cited during a session.\n\nAggregated from the citations on that session's interjections, so this is what was\ngenuinely used, not merely what was available to search. That distinction is the\npoint of the review screen: it lets a human audit whether Kindred read the right\nthing before it spoke.",
+        "description": "A document Meet AGI actually cited during a session.\n\nAggregated from the citations on that session's interjections, so this is what was\ngenuinely used, not merely what was available to search. That distinction is the\npoint of the review screen: it lets a human audit whether Meet AGI read the right\nthing before it spoke.",
         "properties": {
           "citation_count": {
             "description": "Total citations across all interjections.",
@@ -1104,7 +1104,7 @@
           },
           "spoken": {
             "default": false,
-            "description": "True when Kindred said this out loud rather than only in chat.",
+            "description": "True when Meet AGI said this out loud rather than only in chat.",
             "title": "Spoken",
             "type": "boolean"
           },
@@ -1183,10 +1183,10 @@
         "type": "string"
       },
       "InterjectionPolicy-Input": {
-        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.",
+        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.\n\nThe defaults are tuned for *catching every contradiction*, which is what the\nambient loop is now scoped to and nothing else. The old 90-second cooldown was\nwritten when the loop could also volunteer context, where the risk is chatter. A\ncontradiction is rare and always worth hearing, and two of them thirty seconds\napart are two separate things the room got wrong \u2014 swallowing the second one is\nthe bug, not the rate limit working.",
         "properties": {
           "cooldown_seconds": {
-            "default": 90,
+            "default": 20,
             "description": "Minimum gap between interjections.",
             "maximum": 3600.0,
             "minimum": 0.0,
@@ -1194,14 +1194,14 @@
             "type": "integer"
           },
           "max_per_meeting": {
-            "default": 8,
+            "default": 30,
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Per Meeting",
             "type": "integer"
           },
           "min_confidence": {
-            "default": 0.7,
+            "default": 0.6,
             "description": "Below this, the interjection is discarded.",
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1213,10 +1213,10 @@
         "type": "object"
       },
       "InterjectionPolicy-Output": {
-        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.",
+        "description": "Rate limiting is a feature, not an optimization.\n\nA copilot that will not shut up is worse than no copilot. These three knobs are\nthe difference between \"helpful\" and \"muted by the host in minute two\", and they\nare exposed in the UI so they can be tuned live during a meeting.\n\nThe defaults are tuned for *catching every contradiction*, which is what the\nambient loop is now scoped to and nothing else. The old 90-second cooldown was\nwritten when the loop could also volunteer context, where the risk is chatter. A\ncontradiction is rare and always worth hearing, and two of them thirty seconds\napart are two separate things the room got wrong \u2014 swallowing the second one is\nthe bug, not the rate limit working.",
         "properties": {
           "cooldown_seconds": {
-            "default": 90,
+            "default": 20,
             "description": "Minimum gap between interjections.",
             "maximum": 3600.0,
             "minimum": 0.0,
@@ -1224,14 +1224,14 @@
             "type": "integer"
           },
           "max_per_meeting": {
-            "default": 8,
+            "default": 30,
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Per Meeting",
             "type": "integer"
           },
           "min_confidence": {
-            "default": 0.7,
+            "default": 0.6,
             "description": "Below this, the interjection is discarded.",
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1551,7 +1551,7 @@
             "type": "array"
           },
           "meeting_url": {
-            "description": "Google Meet URL. Kindred dispatches a bot to join.",
+            "description": "Google Meet URL. Meet AGI dispatches a bot to join.",
             "examples": [
               "https://meet.google.com/abc-defg-hij"
             ],
@@ -1709,7 +1709,7 @@
           },
           "wake_count": {
             "default": 0,
-            "description": "Times Kindred was addressed by name.",
+            "description": "Times Meet AGI was addressed by name.",
             "title": "Wake Count",
             "type": "integer"
           }
@@ -2597,7 +2597,7 @@
           },
           "matched": {
             "default": false,
-            "description": "Whether this participant was resolved to a known Person. Unmatched participants should be visually flagged \u2014 Kindred has no context on them.",
+            "description": "Whether this participant was resolved to a known Person. Unmatched participants should be visually flagged \u2014 Meet AGI has no context on them.",
             "title": "Matched",
             "type": "boolean"
           },
@@ -2671,6 +2671,12 @@
           "persona": {
             "$ref": "#/components/schemas/PersonaSettings-Output"
           },
+          "secure_meeting": {
+            "default": false,
+            "description": "Route every reasoning call to Tenstorrent instead of the configured cloud provider (Gemini by default). The point is where the meeting's words are processed: Tenstorrent serves an open-weight Qwen on its own hardware, so a meeting that must not reach a third-party frontier API can still be reasoned over.\n\nOff by default \u2014 flipping it on is the deliberate act, and it costs latency and some judgment quality. Takes effect on the next reasoning call; no restart needed. If `TENSTORRENT_API_KEY` is unset the pipeline falls back to canned output rather than quietly sending the transcript to the cloud provider, which is the correct failure for a switch whose whole purpose is to keep data off it.",
+            "title": "Secure Meeting",
+            "type": "boolean"
+          },
           "triage": {
             "$ref": "#/components/schemas/TriageSettings-Output"
           },
@@ -2678,7 +2684,7 @@
             "$ref": "#/components/schemas/VoiceSettings-Output"
           },
           "wake_aliases": {
-            "description": "Additional phrases that also wake Kindred. `Kindred` is kept so the agent still answers to its own name, and so existing fixtures keep working.",
+            "description": "Additional phrases that also wake the agent. `Meet AGI` is kept so it still answers to its own name and not only to the wake word.",
             "items": {
               "type": "string"
             },
@@ -2687,7 +2693,7 @@
           },
           "wake_word": {
             "default": "Hey AGI",
-            "description": "Spoken phrase that puts Kindred into speech mode. Matched against finalized transcript only, case- and punctuation-insensitively, with STT homophones (`hey a g i`, `hey aji`) generated automatically.",
+            "description": "Spoken phrase that puts Meet AGI into speech mode. Matched against finalized transcript only, case- and punctuation-insensitively, with STT homophones (`hey a g i`, `hey aji`) generated automatically.",
             "maxLength": 32,
             "minLength": 2,
             "title": "Wake Word",
@@ -2704,6 +2710,7 @@
           "wake_aliases",
           "wake_word_enabled",
           "autonomy",
+          "secure_meeting",
           "interjection",
           "voice",
           "persona",
@@ -2744,6 +2751,18 @@
                 "type": "null"
               }
             ]
+          },
+          "secure_meeting": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Route every reasoning call to Tenstorrent instead of the configured cloud provider (Gemini by default). The point is where the meeting's words are processed: Tenstorrent serves an open-weight Qwen on its own hardware, so a meeting that must not reach a third-party frontier API can still be reasoned over.\n\nOff by default \u2014 flipping it on is the deliberate act, and it costs latency and some judgment quality. Takes effect on the next reasoning call; no restart needed. If `TENSTORRENT_API_KEY` is unset the pipeline falls back to canned output rather than quietly sending the transcript to the cloud provider, which is the correct failure for a switch whose whole purpose is to keep data off it.",
+            "title": "Secure Meeting"
           },
           "triage": {
             "anyOf": [
@@ -2889,7 +2908,7 @@
         "type": "object"
       },
       "SourceQuote": {
-        "description": "One passage Kindred cited, and every claim that leaned on it.\n\nDeduplicated by passage rather than listed per citation: two claims citing the same\nline of a deck is one piece of evidence used twice, and rendering the identical\nquote twice on an audit screen reads as a bug. `interjection_ids` carries both.",
+        "description": "One passage Meet AGI cited, and every claim that leaned on it.\n\nDeduplicated by passage rather than listed per citation: two claims citing the same\nline of a deck is one piece of evidence used twice, and rendering the identical\nquote twice on an audit screen reads as a bug. `interjection_ids` carries both.",
         "properties": {
           "chunk_id": {
             "title": "Chunk Id",
@@ -2960,7 +2979,7 @@
         "type": "object"
       },
       "SpeakRequest": {
-        "description": "Ask Kindred to say something out loud in a meeting.\n\nExactly one of `text` or `clip_id`. `text` goes through the voice provider;\n`clip_id` plays a known sample clip verbatim, which is what the demo path uses and\nwhat makes a stage failure recoverable.",
+        "description": "Ask Meet AGI to say something out loud in a meeting.\n\nExactly one of `text` or `clip_id`. `text` goes through the voice provider;\n`clip_id` plays a known sample clip verbatim, which is what the demo path uses and\nwhat makes a stage failure recoverable.",
         "properties": {
           "clip_id": {
             "anyOf": [
@@ -2994,7 +3013,7 @@
         "type": "object"
       },
       "SpeechInterruptedData": {
-        "description": "Kindred was cut off \u2014 the kill phrase, or the interrupt endpoint.",
+        "description": "Meet AGI was cut off \u2014 the kill phrase, or the interrupt endpoint.",
         "properties": {
           "cancelled_tasks": {
             "default": 0,
@@ -3412,7 +3431,7 @@
                 "type": "null"
               }
             ],
-            "description": "What the caller asked Kindred to say, when that differs from `text`. Non-null only while the voice provider is a placeholder.",
+            "description": "What the caller asked Meet AGI to say, when that differs from `text`. Non-null only while the voice provider is a placeholder.",
             "title": "Requested Text"
           },
           "status": {
@@ -3486,7 +3505,7 @@
                 "type": "null"
               }
             ],
-            "description": "Provider-specific voice id, or null to use the one the server is configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up id is not a placeholder here \u2014 the provider looks it up and 404s, and Kindred goes silent mid-meeting.",
+            "description": "Provider-specific voice id, or null to use the one the server is configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up id is not a placeholder here \u2014 the provider looks it up and 404s, and Meet AGI goes silent mid-meeting.",
             "examples": [
               "Dennis"
             ],
@@ -3518,7 +3537,7 @@
                 "type": "null"
               }
             ],
-            "description": "Provider-specific voice id, or null to use the one the server is configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up id is not a placeholder here \u2014 the provider looks it up and 404s, and Kindred goes silent mid-meeting.",
+            "description": "Provider-specific voice id, or null to use the one the server is configured with (`INWORLD_VOICE_ID`). Null is the default because a made-up id is not a placeholder here \u2014 the provider looks it up and 404s, and Meet AGI goes silent mid-meeting.",
             "examples": [
               "Dennis"
             ],
@@ -3538,7 +3557,7 @@
           "matched_text": {
             "description": "The span that matched the wake word, for debugging false positives.",
             "examples": [
-              "Kindred, what happened to"
+              "Meet AGI, what happened to"
             ],
             "title": "Matched Text",
             "type": "string"
@@ -3618,8 +3637,8 @@
     }
   },
   "info": {
-    "description": "\nBackend for **Kindred**, a Google Meet copilot that actually speaks.\n\n### Building the frontend against this\n\nYou do not need a Google Meet, a Recall.ai key, or an internet connection. Start a\nfixture replay and subscribe to the socket:\n\n```bash\ncurl -X POST localhost:8000/api/dev/harness/start \\\n  -H 'content-type: application/json' \\\n  -d '{\"fixture_id\":\"q3_revenue_review\",\"speed\":6,\"loop\":true}'\n```\n\nThat emits the complete real-time event stream \u2014 participants, partial and final\ntranscript, speaking states, wake-word detection, agent state transitions, and\ninterjections with real citations. It is byte-for-byte the same contract a real meeting\nproduces; only `Meeting.source` differs.\n\n### Contract rules\n\n- Types are generated from this OpenAPI document. Never hand-write an API type.\n- All mutations are REST. The WebSocket is server-to-client only.\n- Adding fields, enum variants, and event types is free and unannounced. Renames and\n  removals get a heads-up first.\n- `switch` on `LiveEvent.type` with a `default` branch. New event types will arrive.\n",
-    "title": "meet_AGI \u2014 Kindred",
+    "description": "\nBackend for **Meet AGI**, a Google Meet copilot that actually speaks.\n\n### Building the frontend against this\n\nYou do not need a Google Meet, a Recall.ai key, or an internet connection. Start a\nfixture replay and subscribe to the socket:\n\n```bash\ncurl -X POST localhost:8000/api/dev/harness/start \\\n  -H 'content-type: application/json' \\\n  -d '{\"fixture_id\":\"q3_revenue_review\",\"speed\":6,\"loop\":true}'\n```\n\nThat emits the complete real-time event stream \u2014 participants, partial and final\ntranscript, speaking states, wake-word detection, agent state transitions, and\ninterjections with real citations. It is byte-for-byte the same contract a real meeting\nproduces; only `Meeting.source` differs.\n\n### Contract rules\n\n- Types are generated from this OpenAPI document. Never hand-write an API type.\n- All mutations are REST. The WebSocket is server-to-client only.\n- Adding fields, enum variants, and event types is free and unannounced. Renames and\n  removals get a heads-up first.\n- `switch` on `LiveEvent.type` with a `default` branch. New event types will arrive.\n",
+    "title": "Meet AGI",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -3831,7 +3850,7 @@
     },
     "/api/dev/evict-bots": {
       "post": {
-        "description": "Asks Recall which bots are still in a call and tells each one to leave.\n\nA bot is a Recall-side entity: killing the backend that dispatched it does not remove it from the meeting, it just orphans it there until Recall's `everyone_left_timeout` expires. After a hard restart that leaves a silent, deaf Kindred sitting in the call next to the new one.\n\n`keep` spares a bot \u2014 normally the one the caller just dispatched.",
+        "description": "Asks Recall which bots are still in a call and tells each one to leave.\n\nA bot is a Recall-side entity: killing the backend that dispatched it does not remove it from the meeting, it just orphans it there until Recall's `everyone_left_timeout` expires. After a hard restart that leaves a silent, deaf Meet AGI sitting in the call next to the new one.\n\n`keep` spares a bot \u2014 normally the one the caller just dispatched.",
         "operationId": "evict_bots_api_dev_evict_bots_post",
         "parameters": [
           {
@@ -5129,7 +5148,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Have Kindred say an interjection out loud",
+        "summary": "Have Meet AGI say an interjection out loud",
         "tags": [
           "interjections"
         ]
@@ -5306,7 +5325,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Send Kindred to a meeting",
+        "summary": "Send Meet AGI to a meeting",
         "tags": [
           "meetings"
         ]
@@ -5457,7 +5476,7 @@
     },
     "/api/meetings/{meeting_id}/ask": {
       "post": {
-        "description": "Type a question from the dashboard. With `speak: true` Kindred also says the answer into the meeting.\n\nThis runs the same retrieval and reasoning that the spoken wake word does, so it is a genuine substitute rather than a demo prop: if wake detection misfires on stage, type the question and Kindred still answers correctly, out loud.\n\nWith no `ANTHROPIC_API_KEY` configured it returns a placeholder answer so the card, citations, and speaking flow can still be built against it.",
+        "description": "Type a question from the dashboard. With `speak: true` Meet AGI also says the answer into the meeting.\n\nThis runs the same retrieval and reasoning that the spoken wake word does, so it is a genuine substitute rather than a demo prop: if wake detection misfires on stage, type the question and Meet AGI still answers correctly, out loud.\n\nWith no `ANTHROPIC_API_KEY` configured it returns a placeholder answer so the card, citations, and speaking flow can still be built against it.",
         "operationId": "ask_api_meetings__meeting_id__ask_post",
         "parameters": [
           {
@@ -5532,7 +5551,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Ask Kindred a question directly",
+        "summary": "Ask Meet AGI a question directly",
         "tags": [
           "meetings"
         ]
@@ -5864,7 +5883,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Cut Kindred off mid-sentence",
+        "summary": "Cut Meet AGI off mid-sentence",
         "tags": [
           "speech"
         ]
@@ -5936,7 +5955,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Make Kindred leave",
+        "summary": "Make Meet AGI leave",
         "tags": [
           "meetings"
         ]
@@ -5944,7 +5963,7 @@
     },
     "/api/meetings/{meeting_id}/mute": {
       "post": {
-        "description": "Hard override. While muted Kindred will not post to chat or speak.",
+        "description": "Hard override. While muted Meet AGI will not post to chat or speak.",
         "operationId": "mute_api_meetings__meeting_id__mute_post",
         "parameters": [
           {
@@ -6019,7 +6038,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Mute or unmute Kindred",
+        "summary": "Mute or unmute Meet AGI",
         "tags": [
           "meetings"
         ]
@@ -6158,7 +6177,7 @@
     },
     "/api/meetings/{meeting_id}/sources": {
       "get": {
-        "description": "What Kindred actually read before it spoke, aggregated from the citations on this session's interjections \u2014 not merely what was available to search. Ordered by citation count. This is the audit surface: it answers whether Kindred looked at the right thing.",
+        "description": "What Meet AGI actually read before it spoke, aggregated from the citations on this session's interjections \u2014 not merely what was available to search. Ordered by citation count. This is the audit surface: it answers whether Meet AGI looked at the right thing.",
         "operationId": "get_sources_api_meetings__meeting_id__sources_get",
         "parameters": [
           {
@@ -6578,7 +6597,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "What Kindred has said in this meeting",
+        "summary": "What Meet AGI has said in this meeting",
         "tags": [
           "speech"
         ]
@@ -6586,7 +6605,7 @@
     },
     "/api/meetings/{meeting_id}/wake": {
       "post": {
-        "description": "Puts Kindred into `listening` without the wake word. This is the demo safety net for wake-word false negatives \u2014 put it behind a visible button.",
+        "description": "Puts Meet AGI into `listening` without the wake word. This is the demo safety net for wake-word false negatives \u2014 put it behind a visible button.",
         "operationId": "wake_api_meetings__meeting_id__wake_post",
         "parameters": [
           {
@@ -6651,7 +6670,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "Wake Kindred manually",
+        "summary": "Wake Meet AGI manually",
         "tags": [
           "meetings"
         ]
@@ -7387,7 +7406,7 @@
             "description": "Validation error"
           }
         },
-        "summary": "List the sample clips Kindred can play",
+        "summary": "List the sample clips Meet AGI can play",
         "tags": [
           "speech"
         ]

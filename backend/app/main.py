@@ -32,7 +32,9 @@ from .config import get_config
 from .errors import ApiError
 from .ingest import recall_live
 from .knowledge import get_knowledge_base
+from .providers.llm import active_provider_name, get_llm_provider
 from .runtime import get_runtime, shutdown_runtime
+from .store import store
 from .video import attach_to_bus
 from .schemas import ErrorResponse, Schema
 
@@ -55,7 +57,7 @@ files. Move it into config when the two lanes merge.
 """
 
 DESCRIPTION = """
-Backend for **Kindred**, a Google Meet copilot that actually speaks.
+Backend for **Meet AGI**, a Google Meet copilot that actually speaks.
 
 ### Building the frontend against this
 
@@ -98,7 +100,7 @@ class Health(Schema):
 
 
 app = FastAPI(
-    title="meet_AGI — Kindred",
+    title="Meet AGI",
     description=DESCRIPTION,
     version="0.1.0",
     openapi_url="/openapi.json",
@@ -234,16 +236,32 @@ async def on_shutdown() -> None:
 # --- Health ----------------------------------------------------------------------
 
 
-def _reasoning_detail(config) -> str:
-    """One line naming the active reasoning backend and its models."""
-    provider = config.resolved_llm_provider
+def _reasoning_detail(config, provider: str, *, secure: bool, live: bool) -> str:
+    """One line naming the active reasoning backend and its models.
+
+    `provider` is the *effective* backend rather than `config.resolved_llm_provider`,
+    because `secure_meeting` overrides the configured one at runtime. This endpoint
+    exists to answer "where are this meeting's words actually going", so reporting the
+    env-file's answer while the toggle says otherwise would defeat the point of it.
+
+    `live` is whether a provider was actually built. Naming a backend that has no key
+    would be the same lie in the other direction — secure mode resolves to `tenstorrent`
+    whether or not `TENSTORRENT_API_KEY` exists, and the reader has no way to tell the
+    two apart from the name alone.
+    """
+    if secure and not live:
+        return (
+            "secure meeting is on but TENSTORRENT_API_KEY is unset — the harness replays "
+            "its canned interjections rather than falling back to a cloud provider"
+        )
     if provider == "gemini":
         return f"Gemini ({config.gemini_model}); triage on {config.gemini_fast_model}"
     if provider == "claude":
         return f"Claude ({config.anthropic_model}); triage on {config.anthropic_fast_model}"
-    if provider == "tenstorrent":
+    if provider == "tenstorrent" and live:
+        prefix = "Secure meeting — Tenstorrent" if secure else "Tenstorrent"
         return (
-            f"Tenstorrent ({config.tenstorrent_model}); triage on "
+            f"{prefix} ({config.tenstorrent_model}); triage on "
             f"{config.tenstorrent_fast_model}"
         )
     return (
@@ -261,6 +279,12 @@ def health() -> Health:
     """
     config = get_config()
     knowledge = get_knowledge_base()
+
+    # Read once: `secure_meeting` can flip between these two lines otherwise, and the
+    # badge would then name a backend the `configured` flag was not computed against.
+    secure_meeting = store.settings.secure_meeting
+    reasoning_provider = active_provider_name()
+    reasoning_live = get_llm_provider() is not None
 
     # A health check that 500s tells you nothing. If the runtime cannot be built at all
     # — a misconfigured provider, a missing asset — report that as degraded rather than
@@ -303,18 +327,23 @@ def health() -> Health:
                 name="voice",
                 # `auto` is the default, so reporting it back tells you nothing. Report
                 # what it actually resolved to — the point of this endpoint on stage is
-                # to answer "is Kindred about to speak for real or play a canned clip?"
+                # to answer "is Meet AGI about to speak for real or play a canned clip?"
                 configured=runtime.voice.name != "sample",
                 detail=(
                     f"Inworld TTS ({config.inworld_voice_id}, {config.inworld_model_id})"
                     if runtime.voice.name == "inworld"
-                    else "INWORLD_API_KEY unset — Kindred will play pre-baked sample clips"
+                    else "INWORLD_API_KEY unset — Meet AGI will play pre-baked sample clips"
                 ),
             ),
             HealthProvider(
                 name="reasoning",
-                configured=config.resolved_llm_provider != "none",
-                detail=_reasoning_detail(config),
+                # Not `provider != "none"`: secure mode resolves to `tenstorrent` whether
+                # or not the key exists, and the badge must not claim live reasoning when
+                # the pipeline is about to fall back to canned output.
+                configured=reasoning_live,
+                detail=_reasoning_detail(
+                    config, reasoning_provider, secure=secure_meeting, live=reasoning_live
+                ),
             ),
             HealthProvider(
                 name="knowledge",
@@ -338,7 +367,7 @@ def health() -> Health:
 @app.get("/", include_in_schema=False)
 def root() -> dict[str, str]:
     return {
-        "app": "meet_AGI — Kindred",
+        "app": "Meet AGI",
         "docs": "/docs",
         "openapi": "/openapi.json",
         "health": "/api/health",

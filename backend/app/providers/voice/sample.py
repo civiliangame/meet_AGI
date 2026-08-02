@@ -2,7 +2,7 @@
 
 This is a stand-in for real TTS. `synthesize()` ignores the text it is given and returns
 a canned line, recording the requested text in `AudioClip.placeholder_for` so the UI can
-show what Kindred *meant* to say and label the voice as a stand-in rather than quietly
+show what Meet AGI *meant* to say and label the voice as a stand-in rather than quietly
 pretending the audio matches.
 
 That makes the whole speech path — queueing, state transitions, bot dispatch, playback
@@ -101,7 +101,7 @@ class SampleVoiceProvider:
         return self.clip(SILENCE_CLIP_ID)
 
     def chime(self) -> AudioClip:
-        """Short ack tone. Played on wake, before Kindred has an answer to give."""
+        """Short ack tone. Played on wake, before Meet AGI has an answer to give."""
         return self.clip(CHIME_CLIP_ID)
 
     # --- VoiceProvider ------------------------------------------------------------

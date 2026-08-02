@@ -66,7 +66,7 @@ def build_runtime(config: AppConfig | None = None) -> Runtime:
     fillers = FillerBank(voice, voice_id=config.inworld_voice_id)
     if not recall.configured:
         logger.warning(
-            "RECALL_API_KEY is not set — Kindred can run the harness but cannot join a "
+            "RECALL_API_KEY is not set — Meet AGI can run the harness but cannot join a "
             "real meeting."
         )
     return Runtime(

@@ -18,7 +18,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
 ASSET_AUDIO_DIR = Path(__file__).resolve().parent / "assets" / "audio"
 KNOWLEDGE_DIR = REPO_ROOT / "knowledge"
-"""Plain-text corpus Kindred reasons over. One `.txt` per document."""
+"""Plain-text corpus Meet AGI reasons over. One `.txt` per document."""
 
 
 class AppConfig(BaseSettings):
@@ -158,7 +158,7 @@ class AppConfig(BaseSettings):
         description=(
             "Hard ceiling on how long words may accumulate before the utterance is "
             "flushed anyway. Without this an open microphone never produces a silence "
-            "gap, the buffer never closes, and Kindred never responds to anything — the "
+            "gap, the buffer never closes, and Meet AGI never responds to anything — the "
             "'it only works if you mute at the end' failure."
         ),
     )
@@ -197,7 +197,7 @@ class AppConfig(BaseSettings):
     )
     recall_timeout_seconds: float = 30.0
 
-    bot_name: str = "Kindred"
+    bot_name: str = "Meet AGI"
     """Display name in the participant list. Google Meet shows this to everyone."""
 
     voice_provider: str = Field(
@@ -211,7 +211,7 @@ class AppConfig(BaseSettings):
     speech_tail_padding_ms: int = Field(
         default=400,
         description=(
-            "Extra hold after a clip's own duration before Kindred is considered idle. "
+            "Extra hold after a clip's own duration before Meet AGI is considered idle. "
             "Recall buffers and mixes the audio, so playback finishes slightly after the "
             "POST returns; without padding, back-to-back clips clip each other's tails."
         ),

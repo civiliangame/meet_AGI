@@ -1,4 +1,4 @@
-"""Send Kindred into a real meeting and have it speak.
+"""Send Meet AGI into a real meeting and have it speak.
 
 The end-to-end proof of the audio-output path: dispatch a Recall bot, wait to be
 admitted, play random sample clips into the call, leave. No server, no frontend, no
@@ -107,7 +107,7 @@ async def run(args: argparse.Namespace) -> int:
         print(f"region         : {runtime.recall.base_url}")
         meeting = await runtime.sessions.start(
             meeting_url=args.meeting_url,
-            title="Kindred audio smoke test",
+            title="Meet AGI audio smoke test",
             announce_clip_id=args.announce,
         )
         print(f"meeting        : {meeting.id}")

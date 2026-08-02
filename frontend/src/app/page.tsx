@@ -47,7 +47,7 @@ export default function SessionsPage() {
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight">Sessions</h1>
           <p className="mt-1 text-[13px]" style={{ color: "var(--text-muted)" }}>
-            What Kindred said in each meeting, and what it read before saying it.
+            What Meet AGI said in each meeting, and what it read before saying it.
           </p>
         </div>
         <button
@@ -80,7 +80,7 @@ export default function SessionsPage() {
         <Panel>
           <Empty
             title="No sessions yet."
-            hint="Kindred will appear here after its first meeting. Or run the fixture above."
+            hint="Meet AGI will appear here after its first meeting. Or run the fixture above."
           />
         </Panel>
       ) : (
